@@ -243,21 +243,34 @@
         `).join('');
     }
 
-    async function aceitarCorrida(id) {
-      try {
-        await window.API.updatePedido(id, {
-          entregadorId: currentUser.id,
-          entregadorNome: currentUser.name,
-          status: 'aceito',
-          aceito_em: new Date().toISOString()
-        });
-        window.Utils.showToast("Pedido aceito! Vá com cuidado.", "success");
-        if(navigator.vibrate) navigator.vibrate(100);
-        mostrarAba('minhas');
-      } catch (e) {
-        window.Utils.showToast("Falha ao aceitar. Tente outro.", "error");
-      }
-    }
+    // Dentro da tag <script> do entregador.html
+window.aceitarCorrida = async (id) => {
+  try {
+    const user = window.Auth.getCurrentUser();
+    await window.API.updatePedido(id, {
+      entregadorId: user.id,
+      entregadorNome: user.name,
+      status: 'aceito',
+      aceito_em: new Date().toISOString()
+    });
+    window.Utils.showToast("Corrida aceita!", "success");
+  } catch (e) {
+    window.Utils.showToast("Erro ao aceitar corrida", "error");
+  }
+};
+
+window.finalizarEntrega = async (id) => {
+  try {
+    await window.API.updatePedido(id, { 
+      status: 'finalizado',
+      finalizado_em: new Date().toISOString() 
+    });
+    window.Utils.showToast("Entrega concluída!", "success");
+  } catch (e) {
+    window.Utils.showToast("Erro ao finalizar", "error");
+  }
+};
+
 
     async function finalizarEntrega(id) {
       if (confirm("Confirmar entrega e recebimento da taxa?")) {
