@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, query, where, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { getAuth, signInWithRedirect, getRedirectResult, GoogleAuthProvider, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { getFirestore, collection, addDoc, getDocs, query, where, doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getAuth, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCl-U9X9qxohjDpgr8y2pdkS3j-qNm19pk",
@@ -8,64 +8,47 @@ const firebaseConfig = {
   projectId: "benaion-delivery",
   storageBucket: "benaion-delivery.firebasestorage.app",
   messagingSenderId: "309927409217",
-  appId: "1:309927409217:web:7a105cb5237b2294b1b8c0",
-  measurementId: "G-TK1KNW14WH"
+  appId: "1:309927409217:web:7a105cb5237b2294b1b8c0"
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
+export const db = getFirestore(app);
+export const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
-// Configurações Globais
-let TAXAS_LOCAIS = { "Agreste": 6, "Centro": 6, "monte dourado": 30 }; 
-
-const API = {
-  calcularTaxa(bairroOrigem, bairroDestino) {
-    const taxaRet = TAXAS_LOCAIS[bairroOrigem] || 6;
-    const taxaEnt = TAXAS_LOCAIS[bairroDestino] || 6;
-    return Math.max(taxaRet, taxaEnt);
+export const API = {
+  async saveUserToFirestore(uid, data) {
+    await setDoc(doc(db, "usuarios", uid), { ...data, updated_at: Date.now() });
   },
   async getUserProfile(uid) {
-    const docSnap = await getDoc(doc(db, "users", uid));
-    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+    const d = await getDoc(doc(db, "usuarios", uid));
+    return d.exists() ? d.data() : null;
   },
-  async saveUserToFirestore(uid, userData) {
-    await setDoc(doc(db, "users", uid), { ...userData, updated_at: new Date().toISOString() }, { merge: true });
-  },
-  async createPedido(pedidoData) {
-    return await addDoc(collection(db, "pedidos"), { ...pedidoData, created_at: new Date().toISOString() });
+  async createPedido(data) {
+    // Padronizando para Timestamp numérico para facilitar ordenação no cliente
+    return await addDoc(collection(db, "pedidos"), { 
+        ...data, 
+        created_at: Date.now(),
+        timestamp: serverTimestamp() 
+    });
   },
   async updatePedido(id, data) {
-    return await updateDoc(doc(db, "pedidos", id), data);
+    await updateDoc(doc(db, "pedidos", id), data);
+  },
+  async deletePedido(id) {
+    await deleteDoc(doc(db, "pedidos", id));
   },
   escutarTodosPedidos(callback) {
-    return onSnapshot(collection(db, "pedidos"), (snapshot) => {
-      callback(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    return onSnapshot(collection(db, "pedidos"), (snap) => {
+      callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
   }
 };
 
-const Auth = {
-  async loginWithGoogle() {
-    await signInWithRedirect(auth, googleProvider);
-  },
-  async handleRedirect() {
-    try {
-      const result = await getRedirectResult(auth);
-      if (result && result.user) {
-        let profile = await API.getUserProfile(result.user.uid);
-        if (!profile) {
-          profile = { name: result.user.displayName, email: result.user.email, userType: 'cliente', online: false };
-          await API.saveUserToFirestore(result.user.uid, profile);
-        }
-        localStorage.setItem('benaion_user', JSON.stringify({ id: result.user.uid, ...profile }));
-        window.location.href = `${profile.userType}.html`;
-      }
-    } catch (e) { console.error("Erro Google Auth:", e); }
-  },
+export const Auth = {
+  async loginWithGoogle() { await signInWithRedirect(auth, googleProvider); },
   logout() {
-    auth.signOut();
+    signOut(auth);
     localStorage.removeItem('benaion_user');
     window.location.href = 'index.html';
   },
@@ -74,15 +57,15 @@ const Auth = {
     const user = this.getCurrentUser();
     if (!user) { window.location.href = 'index.html'; return false; }
     if (allowedTypes.length > 0 && !allowedTypes.includes(user.userType)) {
-      window.location.href = 'index.html'; return false;
+        alert("Acesso restrito!");
+        window.location.href = 'index.html';
+        return false;
     }
     return true;
   }
 };
 
-// Inicialização
-Auth.handleRedirect();
+// Disponibiliza globalmente para os scripts legados (HTML)
 window.API = API;
 window.Auth = Auth;
-window.db = db;
 window.auth = auth;
