@@ -102,7 +102,7 @@
 
     <div style="text-align: center; margin-top: 30px; color: white;">
       <p style="font-size: 12px; font-weight: 600;">LARANJAL DO JARI • MONTE DOURADO</p>
-      <p style="font-size: 11px; opacity: 0.6;">BENAION DELIVERY 2026 • v2.0.0</p>
+      <p style="font-size: 11px; opacity: 0.6;">BENAION DELIVERY 2026 • v2.1.0</p>
     </div>
   </div>
 
@@ -141,6 +141,28 @@
   <script>
     const loading = document.getElementById('loadingOverlay');
 
+    // ========================================
+    // LOGICA DE AUTO-LOGIN E REDIRECIONAMENTO
+    // ========================================
+    window.addEventListener('load', async () => {
+      // 1. Aguarda um pequeno tempo para garantir que os módulos (Auth) carregaram
+      setTimeout(async () => {
+        // 2. Verifica se está voltando do login do Google
+        if (window.Auth && typeof window.Auth.handleRedirect === 'function') {
+           await window.Auth.handleRedirect();
+        }
+
+        // 3. Verifica se já existe uma sessão ativa no dispositivo
+        const savedUser = localStorage.getItem('benaion_user');
+        if (savedUser) {
+          const user = JSON.parse(savedUser);
+          if (user && user.userType) {
+            window.location.href = `${user.userType}.html`;
+          }
+        }
+      }, 500);
+    });
+
     function toggleParceiroFields() {
       const type = document.getElementById('registerUserType').value;
       document.getElementById('parceiroExtraFields').style.display = (type === 'parceiro') ? 'block' : 'none';
@@ -151,7 +173,6 @@
 
     async function handleEmailLogin(event) {
       event.preventDefault();
-      // Verificação de segurança para garantir que o Firebase carregou
       if (!window.Auth || !window.auth) { 
         window.Utils.showToast("Sistema carregando... Tente novamente", "info"); 
         return; 
@@ -162,15 +183,16 @@
       const pass = document.getElementById('password').value;
 
       try {
-        // Usamos as funções importadas via api.js que estão no escopo global
-        // Nota: Se não criou a função Auth.loginWithEmail no api.js, use a do firebase direto via window.auth:
         const { signInWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
         const userCredential = await signInWithEmailAndPassword(window.auth, email, pass);
         
-        // Busca perfil e redireciona
         const profile = await window.API.getUserProfile(userCredential.user.uid);
-        localStorage.setItem('benaion_user', JSON.stringify({ id: userCredential.user.uid, ...profile }));
-        window.location.href = `${profile.userType}.html`;
+        if (profile) {
+            localStorage.setItem('benaion_user', JSON.stringify({ id: userCredential.user.uid, ...profile }));
+            window.location.href = `${profile.userType}.html`;
+        } else {
+            throw new Error("Perfil não encontrado");
+        }
       } catch (e) {
         loading.style.display = 'none';
         window.Utils.showToast("E-mail ou senha incorretos", "error");
@@ -200,7 +222,7 @@
           email: email,
           userType: userType,
           storeName: (userType === 'parceiro') ? document.getElementById('storeName').value : null,
-          created_at: Date.now() // PADRONIZADO: Usando número em vez de ISOString
+          created_at: Date.now()
         };
 
         await window.API.saveUserToFirestore(userCredential.user.uid, dados);
@@ -215,7 +237,7 @@
     }
 
     async function handleGoogleLogin() {
-      if (!window.Auth) { window.Utils.showToast("Aguarde...", "info"); return; }
+      if (!window.Auth) { window.Utils.showToast("Aguarde o carregamento...", "info"); return; }
       loading.style.display = 'flex';
       try {
         await window.Auth.loginWithGoogle();
@@ -240,3 +262,4 @@
   </script>
 </body>
 </html>
+
