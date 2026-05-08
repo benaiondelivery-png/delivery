@@ -50,6 +50,7 @@
       font-weight: 800;
       border: none;
       transition: 0.2s;
+      cursor: pointer;
     }
 
     .btn-aceitar {
@@ -59,7 +60,8 @@
       margin-top: 10px;
     }
 
-    .btn-aceitar:active { background: #b3050f; transform: scale(0.98); }
+    .btn-aceitar:disabled { background: #ccc; }
+    .btn-aceitar:active:not(:disabled) { background: #b3050f; transform: scale(0.98); }
   </style>
 </head>
 <body>
@@ -125,7 +127,7 @@
 
     <nav class="bottom-nav">
       <button class="nav-item active" onclick="mostrarAba('disponiveis')"><i class="fas fa-motorcycle"></i><span>Radar</span></button>
-      <button class="nav-item" onclick="window.Utils.showToast('Tabela em breve', 'info')"><i class="fas fa-list-ul"></i><span>Preços</span></button>
+      <button class="nav-item" onclick="window.Utils.showToast('Tabela de Preços em breve', 'info')"><i class="fas fa-list-ul"></i><span>Preços</span></button>
       <button class="nav-item" onclick="toggleStatus()"><i class="fas fa-power-off" id="navIconStatus"></i><span id="navTextStatus">Offline</span></button>
     </nav>
   </div>
@@ -148,12 +150,12 @@
       
       document.getElementById('entregadorNome').textContent = "Olá, " + currentUser.name.split(' ')[0];
       
-      // Carrega status inicial
+      // Sincroniza status inicial do banco de dados
       const perfil = await window.API.getUserProfile(currentUser.id);
       currentUser.online = perfil?.online || false;
       sincronizarUIStatus(currentUser.online);
 
-      // Radar em Tempo Real
+      // Escuta todos os pedidos em Tempo Real
       window.API.escutarTodosPedidos((pedidos) => {
           pedidosEscutados = pedidos;
           renderizarListas();
@@ -165,6 +167,7 @@
       const indicator = document.getElementById('statusIndicator');
       const textNav = document.getElementById('navTextStatus');
       const iconNav = document.getElementById('navIconStatus');
+      const btnHeader = document.getElementById('btnStatusHeader');
 
       if (isOnline) {
         indicator.style.background = "#d4f8e2";
@@ -172,12 +175,14 @@
         indicator.innerHTML = '<i class="fas fa-circle" style="font-size: 8px;"></i> NO RADAR';
         textNav.textContent = "Online";
         iconNav.style.color = "#2ecc71";
+        btnHeader.style.color = "#2ecc71";
       } else {
         indicator.style.background = "#eee";
         indicator.style.color = "#95a5a6";
         indicator.innerHTML = '<i class="fas fa-circle" style="font-size: 8px;"></i> OFFLINE';
         textNav.textContent = "Offline";
         iconNav.style.color = "#95a5a6";
+        btnHeader.style.color = "#666";
       }
     }
 
@@ -187,9 +192,10 @@
         await window.API.updateUser(currentUser.id, { online: novoStatus });
         currentUser.online = novoStatus;
         sincronizarUIStatus(novoStatus);
-        window.Utils.showToast(novoStatus ? "Você está visível para novas entregas!" : "Você saiu do radar", "info");
+        renderizarListas(); // Atualiza a lista para esconder/mostrar pedidos
+        window.Utils.showToast(novoStatus ? "Você está Online!" : "Você saiu do radar", "info");
       } catch (e) {
-        window.Utils.showToast("Erro ao atualizar status", "error");
+        window.Utils.showToast("Erro ao mudar status", "error");
       }
     }
 
@@ -197,98 +203,107 @@
       const dispContainer = document.getElementById('listaPedidosDisponiveis');
       const minhasContainer = document.getElementById('listaMinhasEntregas');
 
-      const disponiveis = pedidosEscutados.filter(p => p.status === 'aguardando_entregador' && currentUser.online);
-      const minhas = pedidosEscutados.filter(p => p.entregadorId === currentUser.id && p.status !== 'finalizado');
+      // Filtra pedidos disponíveis (Apenas se o entregador estiver Online)
+      const disponiveis = currentUser.online 
+        ? pedidosEscutados.filter(p => p.status === 'aguardando_entregador')
+        : [];
 
-      // Lista Radar
+      // Filtra minhas entregas em andamento
+      const minhas = pedidosEscutados.filter(p => 
+        p.entregadorId === currentUser.id && 
+        ['aceito', 'em_entrega'].includes(p.status)
+      );
+
+      // Render Radar
       dispContainer.innerHTML = disponiveis.length === 0 
         ? `<div style="text-align:center; padding:40px; color:#999;">
-            <i class="fas fa-box-open fa-2x" style="margin-bottom:10px;"></i>
-            <p>${currentUser.online ? 'Buscando pedidos em Jari...' : 'Fique Online para ver o Radar'}</p>
+            <i class="fas ${currentUser.online ? 'fa-box-open' : 'fa-toggle-off'} fa-2x" style="margin-bottom:10px;"></i>
+            <p>${currentUser.online ? 'Sem pedidos no momento...' : 'Fique Online para ver o Radar'}</p>
            </div>`
         : disponiveis.map(p => `
           <div class="pedido-card animate__animated animate__fadeInUp">
             <div style="display:flex; justify-content:space-between; align-items:start;">
               <div style="font-size: 13px;">
-                <b style="color:#E30613;">RETIRADA:</b> ${p.bairroRetirada.toUpperCase()}<br>
-                <b style="color:#333;">ENTREGA:</b> ${p.bairro.toUpperCase()}
-                <p style="margin-top:8px; color:#666;"><i class="fas fa-shopping-bag"></i> ${p.produto}</p>
+                <b style="color:#E30613;">DE:</b> ${p.bairroRetirada.toUpperCase()}<br>
+                <b style="color:#333;">PARA:</b> ${p.bairro.toUpperCase()}
+                <p style="margin-top:8px; color:#666; font-size:12px;">
+                  <i class="fas fa-box"></i> ${p.produto || 'Entrega Diversa'}
+                </p>
               </div>
               <div style="text-align:right;">
                 <b style="color:#2ecc71; font-size:20px;">${window.Utils.formatCurrency(p.taxaEntrega)}</b>
               </div>
             </div>
-            <button class="btn-action btn-aceitar" onclick="aceitarCorrida('${p.id}')">PEGAR ENTREGA</button>
+            <button class="btn-action btn-aceitar" onclick="aceitarCorrida('${p.id}', this)">ACEITAR ENTREGA</button>
           </div>
         `).join('');
 
-      // Minhas Entregas
+      // Render Minhas Entregas
       minhasContainer.innerHTML = minhas.length === 0
-        ? '<p style="text-align:center; padding:30px; color:#999;">Nenhuma entrega ativa no momento.</p>'
+        ? '<div style="text-align:center; padding:30px; color:#999;">Sem entregas ativas.</div>'
         : minhas.map(p => `
-          <div class="card" style="border-left: 6px solid #3498db; margin-bottom:12px; border-radius:15px;">
+          <div class="card" style="border-left: 6px solid #3498db; margin-bottom:12px; border-radius:15px; background: white; padding: 15px;">
             <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-              <b style="font-size:12px;">PEDIDO #${p.id.substring(0,6).toUpperCase()}</b>
-              <span class="badge" style="background:#3498db; color:white; font-size:10px;">${window.Utils.getStatusText(p.status).toUpperCase()}</span>
+              <b style="font-size:12px; color:#3498db;">#${p.id.substring(0,6).toUpperCase()}</b>
+              <span class="badge" style="background:#3498db; color:white; font-size:10px; padding:2px 8px; border-radius:10px;">${window.Utils.getStatusText(p.status).toUpperCase()}</span>
             </div>
-            <div style="font-size:13px; margin-bottom:15px;">
-              <p>📍 <b>De:</b> ${p.retiradaLocal}</p>
-              <p>🏁 <b>Para:</b> ${p.entregaLocal || p.bairro}</p>
+            <div style="font-size:13px; margin-bottom:15px; color:#444;">
+              <p><i class="fas fa-store"></i> <b>Retirada:</b> ${p.retiradaLocal} (${p.bairroRetirada})</p>
+              <p><i class="fas fa-map-marker-alt"></i> <b>Entrega:</b> ${p.entregaLocal} (${p.bairro})</p>
             </div>
-            <div style="display:grid; grid-template-columns: 1fr 1.2fr; gap:10px;">
-              <button class="btn-action" style="background:#f1f1f1; color:#333;" onclick="window.Utils.openGoogleMaps('${p.bairroRetirada}', '${p.bairro}')">VER ROTA</button>
-              <button class="btn-action" style="background:#2ecc71; color:white;" onclick="finalizarEntrega('${p.id}')">CONCLUÍDO</button>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+              <button class="btn-action" style="background:#f1f1f1; color:#333;" onclick="window.Utils.openGoogleMaps('${p.bairroRetirada}', '${p.bairro}')">ROTA</button>
+              <button class="btn-action" style="background:#2ecc71; color:white;" onclick="finalizarEntrega('${p.id}')">ENTREGUE</button>
             </div>
           </div>
         `).join('');
     }
 
-    // Dentro da tag <script> do entregador.html
-window.aceitarCorrida = async (id) => {
-  try {
-    const user = window.Auth.getCurrentUser();
-    await window.API.updatePedido(id, {
-      entregadorId: user.id,
-      entregadorNome: user.name,
-      status: 'aceito',
-      aceito_em: new Date().toISOString()
-    });
-    window.Utils.showToast("Corrida aceita!", "success");
-  } catch (e) {
-    window.Utils.showToast("Erro ao aceitar corrida", "error");
-  }
-};
-
-window.finalizarEntrega = async (id) => {
-  try {
-    await window.API.updatePedido(id, { 
-      status: 'finalizado',
-      finalizado_em: new Date().toISOString() 
-    });
-    window.Utils.showToast("Entrega concluída!", "success");
-  } catch (e) {
-    window.Utils.showToast("Erro ao finalizar", "error");
-  }
-};
-
+    async function aceitarCorrida(id, btn) {
+      btn.disabled = true;
+      btn.textContent = "PROCESSANDO...";
+      
+      try {
+        await window.API.updatePedido(id, {
+          entregadorId: currentUser.id,
+          entregadorNome: currentUser.name,
+          status: 'aceito',
+          aceito_em: Date.now()
+        });
+        window.Utils.showToast("Pedido aceito! Boa entrega.", "success");
+        if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        mostrarAba('minhas');
+      } catch (e) {
+        window.Utils.showToast("Este pedido já foi pego.", "error");
+        btn.disabled = false;
+        btn.textContent = "ACEITAR ENTREGA";
+      }
+    }
 
     async function finalizarEntrega(id) {
-      if (confirm("Confirmar entrega e recebimento da taxa?")) {
-        await window.API.updatePedido(id, { 
-          status: 'finalizado',
-          finalizado_em: new Date().toISOString()
-        });
-        window.Utils.showToast("Excelente! Entrega finalizada.", "success");
+      if (confirm("Confirmar que você finalizou esta entrega?")) {
+        try {
+            await window.API.updatePedido(id, { 
+              status: 'finalizado',
+              finalizado_em: Date.now()
+            });
+            window.Utils.showToast("Ganhos adicionados!", "success");
+        } catch (e) {
+            window.Utils.showToast("Erro ao finalizar.", "error");
+        }
       }
     }
 
     function atualizarEstatisticas() {
-      const hoje = new Date().toLocaleDateString();
-      const concluidosHoje = pedidosEscutados.filter(p => 
-        p.entregadorId === currentUser.id && 
-        p.status === 'finalizado' &&
-        new Date(p.finalizado_em || Date.now()).toLocaleDateString() === hoje
-      );
+      const hojeStr = new Date().toLocaleDateString();
+      
+      const concluidosHoje = pedidosEscutados.filter(p => {
+        if (p.entregadorId !== currentUser.id || p.status !== 'finalizado') return false;
+        
+        // Verifica se a data de finalização é hoje
+        const dataFinalizado = p.finalizado_em ? new Date(p.finalizado_em).toLocaleDateString() : '';
+        return dataFinalizado === hojeStr;
+      });
 
       const ganhos = concluidosHoje.reduce((acc, p) => acc + (parseFloat(p.taxaEntrega) || 0), 0);
       
@@ -299,8 +314,13 @@ window.finalizarEntrega = async (id) => {
     function mostrarAba(aba) {
       document.getElementById('abaDisponiveis').classList.toggle('hidden', aba !== 'disponiveis');
       document.getElementById('abaMinhas').classList.toggle('hidden', aba !== 'minhas');
+      
       document.getElementById('btnTabDisp').className = aba === 'disponiveis' ? 'btn btn-primary' : 'btn btn-outline';
       document.getElementById('btnTabMinhas').className = aba === 'minhas' ? 'btn btn-primary' : 'btn btn-outline';
+      
+      // Atualiza botões da nav inferior
+      const navItems = document.querySelectorAll('.bottom-nav .nav-item');
+      navItems[0].classList.toggle('active', aba === 'disponiveis');
     }
 
     document.addEventListener('DOMContentLoaded', initEntregador);
