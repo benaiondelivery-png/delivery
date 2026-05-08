@@ -191,4 +191,52 @@
         
         const email = document.getElementById('registerEmail').value;
         const pass = document.getElementById('registerPassword').value;
-        const userType = document.
+        const userType = document.getElementById('registerUserType').value;
+
+        const userCredential = await createUserWithEmailAndPassword(window.auth, email, pass);
+        
+        const dados = {
+          name: document.getElementById('registerName').value,
+          email: email,
+          userType: userType,
+          storeName: (userType === 'parceiro') ? document.getElementById('storeName').value : null,
+          created_at: Date.now() // PADRONIZADO: Usando número em vez de ISOString
+        };
+
+        await window.API.saveUserToFirestore(userCredential.user.uid, dados);
+        localStorage.setItem('benaion_user', JSON.stringify({ id: userCredential.user.uid, ...dados }));
+        window.location.href = `${userType}.html`;
+      } catch (e) {
+        loading.style.display = 'none';
+        let msg = "Erro ao cadastrar";
+        if (e.message.includes("email-already")) msg = "Este e-mail já está em uso";
+        window.Utils.showToast(msg, "error");
+      }
+    }
+
+    async function handleGoogleLogin() {
+      if (!window.Auth) { window.Utils.showToast("Aguarde...", "info"); return; }
+      loading.style.display = 'flex';
+      try {
+        await window.Auth.loginWithGoogle();
+      } catch (e) {
+        loading.style.display = 'none';
+        window.Utils.showToast("Falha na conexão com Google", "error");
+      }
+    }
+
+    async function handleForgotPassword() {
+      const email = document.getElementById('email').value;
+      if (!email) { window.Utils.showToast("Digite seu e-mail primeiro", "info"); return; }
+      
+      try {
+        const { sendPasswordResetEmail } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
+        await sendPasswordResetEmail(window.auth, email);
+        window.Utils.showToast("Link de recuperação enviado!", "success");
+      } catch (e) {
+        window.Utils.showToast("Erro ao processar pedido", "error");
+      }
+    }
+  </script>
+</body>
+</html>
