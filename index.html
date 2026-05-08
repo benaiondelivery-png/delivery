@@ -63,7 +63,6 @@
         <img src="https://i.postimg.cc/T2Vt53JP/Vermelho-delivery-logo-20260227-011329-0005.png" style="width: 80px; border-radius: 50%;">
     </div>
     <p style="margin-top: 15px; font-weight: 600;">Conectando à Benaion...</p>
-    <button onclick="document.getElementById('loadingOverlay').style.display='none'" style="margin-top:20px; background:none; border:1px solid white; color:white; padding:5px 10px; border-radius:5px; font-size:10px; cursor:pointer;">Cancelar</button>
   </div>
 
   <div class="login-container animate__animated animate__fadeInUp">
@@ -90,7 +89,7 @@
           <a href="#" onclick="handleForgotPassword()" class="link-aux">Esqueceu a senha?</a>
         </div>
 
-        <button type="submit" class="btn btn-primary w-100" style="width: 100%; padding: 14px; font-weight: 700; background: var(--primary-red); color: white; border: none; border-radius: 12px; cursor: pointer;">
+        <button type="submit" class="btn-primary w-100" style="width: 100%; padding: 14px; font-weight: 700; background: var(--primary-red); color: white; border: none; border-radius: 12px; cursor: pointer;">
           ENTRAR
         </button>
       </form>
@@ -129,7 +128,7 @@
         <input type="email" class="input-animated" id="registerEmail" placeholder="Email" required>
         <input type="password" class="input-animated" id="registerPassword" placeholder="Crie uma Senha (mín. 6 dígitos)" required minlength="6">
         
-        <button type="submit" class="btn btn-primary w-100" style="width: 100%; padding: 14px; background: var(--primary-red); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 700;">
+        <button type="submit" class="btn-primary w-100" style="width: 100%; padding: 14px; background: var(--primary-red); color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 700;">
           CONCLUIR CADASTRO
         </button>
       </form>
@@ -150,22 +149,28 @@
     function handleOpenRegister() { document.getElementById('registerModal').style.display = 'flex'; }
     function handleCloseRegister() { document.getElementById('registerModal').style.display = 'none'; }
 
-    async function handleForgotPassword() {
-      const email = document.getElementById('email').value;
-      if (!window.Auth) return;
-      try {
-        await window.Auth.recuperarSenha(email);
-      } catch (e) {
-        window.Utils.showToast("Erro ao processar pedido", "error");
-      }
-    }
-
     async function handleEmailLogin(event) {
       event.preventDefault();
-      if (!window.Auth) { window.Utils.showToast("Carregando sistema...", "info"); return; }
+      // Verificação de segurança para garantir que o Firebase carregou
+      if (!window.Auth || !window.auth) { 
+        window.Utils.showToast("Sistema carregando... Tente novamente", "info"); 
+        return; 
+      }
+
       loading.style.display = 'flex';
+      const email = document.getElementById('email').value;
+      const pass = document.getElementById('password').value;
+
       try {
-        await window.Auth.loginWithEmail(document.getElementById('email').value, document.getElementById('password').value);
+        // Usamos as funções importadas via api.js que estão no escopo global
+        // Nota: Se não criou a função Auth.loginWithEmail no api.js, use a do firebase direto via window.auth:
+        const { signInWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
+        const userCredential = await signInWithEmailAndPassword(window.auth, email, pass);
+        
+        // Busca perfil e redireciona
+        const profile = await window.API.getUserProfile(userCredential.user.uid);
+        localStorage.setItem('benaion_user', JSON.stringify({ id: userCredential.user.uid, ...profile }));
+        window.location.href = `${profile.userType}.html`;
       } catch (e) {
         loading.style.display = 'none';
         window.Utils.showToast("E-mail ou senha incorretos", "error");
@@ -174,43 +179,16 @@
 
     async function handleRegister(event) {
       event.preventDefault();
-      if (!window.authService) { window.Utils.showToast("Iniciando banco de dados...", "info"); return; }
+      if (!window.API || !window.auth) { 
+        window.Utils.showToast("Aguarde o carregamento do banco...", "info"); 
+        return; 
+      }
+      
       loading.style.display = 'flex';
 
       try {
+        const { createUserWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
+        
         const email = document.getElementById('registerEmail').value;
         const pass = document.getElementById('registerPassword').value;
-        const userType = document.getElementById('registerUserType').value;
-
-        const userCredential = await window.authService.createUserWithEmailAndPassword(window.auth, email, pass);
-        const dados = {
-          name: document.getElementById('registerName').value,
-          email: email,
-          userType: userType,
-          storeName: (userType === 'parceiro') ? document.getElementById('storeName').value : null,
-          created_at: new Date().toISOString()
-        };
-        await window.API.saveUserToFirestore(userCredential.user.uid, dados);
-        window.location.href = `${userType}.html`;
-      } catch (e) {
-        loading.style.display = 'none';
-        const msg = e.message.includes("email-already") ? "Este e-mail já está em uso" : "Erro ao cadastrar";
-        window.Utils.showToast(msg, "error");
-      }
-    }
-
-    async function handleGoogleLogin() {
-      if (!window.Auth) { window.Utils.showToast("Aguarde...", "info"); return; }
-      loading.style.display = 'flex';
-      try {
-        // Agora usando Redirect para não travar no celular
-        await window.Auth.loginWithGoogle();
-      } catch (e) {
-        loading.style.display = 'none';
-        window.Utils.showToast("Falha na conexão com Google", "error");
-      }
-    }
-  </script>
-</body>
-</html>
-
+        const userType = document.
