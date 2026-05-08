@@ -78,11 +78,11 @@
           <label class="form-label">Onde buscar? (Bairro e Local)</label>
           <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 8px; margin-bottom: 15px;">
             <select class="form-control" id="pedidoBairroRetirada" required onchange="atualizarTaxaEstimada()">
-              <option value="centro">Centro</option>
+              <option value="Centro">Centro</option>
               <option value="Agreste">Agreste</option>
               <option value="Cajari">Cajari</option>
               <option value="Malvinas">Malvinas</option>
-              <option value="buritizal">Buritizal</option>
+              <option value="Buritizal">Buritizal</option>
             </select>
             <input type="text" class="form-control" id="pedidoRetiradaLocal" required placeholder="Ex: Pizzaria X">
           </div>
@@ -91,13 +91,13 @@
           <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 8px; margin-bottom: 15px;">
              <select class="form-control" id="pedidoBairroEntrega" required onchange="atualizarTaxaEstimada()">
                <option value="">Selecione o Bairro</option>
-               <option value="centro">Centro</option>
+               <option value="Centro">Centro</option>
                <option value="Agreste">Agreste</option>
-               <option value="Nova esperança">Nova Esperança</option>
+               <option value="Nova Esperança">Nova Esperança</option>
                <option value="Cajari">Cajari</option>
                <option value="Sarney">Sarney</option>
-               <option value="buritizal">Buritizal</option>
-               <option value="monte dourado">Monte Dourado</option>
+               <option value="Buritizal">Buritizal</option>
+               <option value="Monte Dourado">Monte Dourado</option>
              </select>
              <input type="text" class="form-control" id="pedidoEntregaLocal" required placeholder="Ex: Casa 123">
           </div>
@@ -128,19 +128,27 @@
     let taxaCalculada = 6.00;
 
     async function initPaginaCliente() {
+      // Aguarda carregamento do core
       if (!window.Auth || !window.API || !window.auth) {
         setTimeout(initPaginaCliente, 300);
         return;
       }
 
+      // Proteção de Rota
       if (!window.Auth.requireAuth(['cliente'])) return;
       currentUser = window.Auth.getCurrentUser();
 
+      // UI
       document.getElementById('clienteNome').textContent = "Olá, " + currentUser.name.split(' ')[0];
 
-      // Escuta pedidos em tempo real via Firebase
+      // Monitoramento Real-time
       window.API.escutarTodosPedidos((todos) => {
+          // Filtra apenas os pedidos deste cliente
           const meusPedidos = todos.filter(p => p.clienteId === currentUser.id);
+          
+          // Ordena por timestamp (número) - mais novos primeiro
+          meusPedidos.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+          
           document.getElementById('contadorPedidos').textContent = meusPedidos.length;
           renderizarMeusPedidos(meusPedidos);
       });
@@ -148,15 +156,18 @@
       carregarParceiros();
     }
 
-    document.addEventListener('DOMContentLoaded', initPaginaCliente);
-
     function atualizarTaxaEstimada() {
-        const ret = document.getElementById('pedidoBairroRetirada').value;
-        const ent = document.getElementById('pedidoBairroEntrega').value;
-        if (ret && ent && window.API.calcularTaxa) {
-            taxaCalculada = window.API.calcularTaxa(ret, ent);
-            document.getElementById('txtTaxaEstimada').textContent = window.Utils.formatCurrency(taxaCalculada);
+        const bairroDestino = document.getElementById('pedidoBairroEntrega').value;
+        
+        // Tenta buscar na tabela global sincronizada pelo api.js
+        if (window.TAXAS_LOCAIS && window.TAXAS_LOCAIS[bairroDestino]) {
+            taxaCalculada = window.TAXAS_LOCAIS[bairroDestino];
+        } else {
+            taxaCalculada = 6.00; // Valor padrão/mínimo
         }
+
+        const txt = document.getElementById('txtTaxaEstimada');
+        if (txt) txt.textContent = window.Utils.formatCurrency(taxaCalculada);
     }
 
     function renderizarMeusPedidos(pedidos) {
@@ -164,15 +175,13 @@
       if (pedidos.length === 0) {
         container.innerHTML = `
             <div style="text-align: center; padding: 30px; background: white; border-radius: 15px; color: #999;">
-                <p>Nenhum pedido no momento.</p>
+                <p>Você ainda não fez nenhum pedido.</p>
             </div>`;
         return;
       }
 
-      pedidos.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
       container.innerHTML = pedidos.map(p => `
-        <div class="card animate__animated animate__fadeInUp" style="margin-bottom: 15px; border-left: 6px solid ${getStatusColor(p.status)}; border-radius: 15px; position: relative;">
+        <div class="card animate__animated animate__fadeInUp" style="margin-bottom: 15px; border-left: 6px solid ${getStatusColor(p.status)}; border-radius: 15px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
              <b style="color: #E30613; font-size: 14px;">#${p.id.substring(0,6).toUpperCase()}</b>
              <span style="background:${getStatusColor(p.status)}; color:white; font-size:10px; padding:4px 10px; border-radius:20px; font-weight:bold;">
@@ -180,13 +189,13 @@
              </span>
           </div>
           <div style="font-size: 13px; color: #555;">
-             <p style="margin-bottom: 5px;"><i class="fas fa-store"></i> <b>De:</b> ${p.retiradaLocal} (${p.bairroRetirada})</p>
-             <p><i class="fas fa-map-marker-alt"></i> <b>Para:</b> ${p.entregaLocal} (${p.bairro})</p>
+             <p style="margin-bottom: 5px;"><i class="fas fa-store" style="color: #E30613;"></i> <b>Retirada:</b> ${p.retiradaLocal} (${p.bairroRetirada})</p>
+             <p><i class="fas fa-map-marker-alt" style="color: #3498db;"></i> <b>Entrega:</b> ${p.entregaLocal} (${p.bairro})</p>
           </div>
           <div style="display:flex; justify-content:space-between; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid #f9f9f9;">
              <span style="font-weight:900; color:#27ae60; font-size: 16px;">${window.Utils.formatCurrency(p.taxaEntrega)}</span>
              ${p.status === 'aguardando_entregador' ? 
-               `<button onclick="cancelarMeuPedido('${p.id}')" style="background:none; border:none; color:#999; font-size:11px;"><i class="fas fa-times"></i> CANCELAR</button>` 
+               `<button onclick="cancelarMeuPedido('${p.id}')" style="background:none; border:none; color:#999; font-size:11px; cursor:pointer;"><i class="fas fa-times"></i> CANCELAR</button>` 
                : ''}
           </div>
         </div>
@@ -197,9 +206,9 @@
         if(confirm("Deseja cancelar este pedido?")) {
             try {
                 await window.API.deletePedido(id);
-                window.Utils.showToast("Pedido cancelado.", "success");
+                window.Utils.showToast("Pedido cancelado com sucesso.");
             } catch (e) {
-                window.Utils.showToast("Não foi possível cancelar.", "error");
+                window.Utils.showToast("Erro ao cancelar. Tente novamente.", "error");
             }
         }
     }
@@ -218,7 +227,8 @@
         entregaLocal: document.getElementById('pedidoEntregaLocal').value,
         produto: document.getElementById('pedidoProduto').value,
         taxaEntrega: taxaCalculada,
-        status: 'aguardando_entregador'
+        status: 'aguardando_entregador',
+        created_at: Date.now() // GARANTE A ORDENAÇÃO
       };
 
       try {
@@ -226,8 +236,9 @@
         window.Utils.showToast("Pedido enviado ao radar!", "success");
         window.Utils.hideModal('novoPedidoModal');
         e.target.reset();
+        atualizarTaxaEstimada();
       } catch (err) {
-        window.Utils.showToast("Erro ao processar.", "error");
+        window.Utils.showToast("Erro ao processar o pedido.", "error");
       } finally {
         btn.disabled = false;
       }
@@ -240,20 +251,31 @@
           {nome: "Farmácia", img: "https://cdn-icons-png.flaticon.com/512/4320/4320337.png"},
           {nome: "Distribuidora", img: "https://cdn-icons-png.flaticon.com/512/952/952306.png"}
        ];
-       document.getElementById('listaParceiros').innerHTML = parceiros.map(p => `
-          <div style="text-align: center; min-width: 85px;" onclick="window.Utils.showToast('Loja selecionada: ${p.nome}', 'info')">
-             <div style="width: 65px; height: 65px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto; box-shadow: 0 4px 8px rgba(0,0,0,0.05); border: 1px solid #eee;">
-                <img src="${p.img}" style="width: 40px;">
-             </div>
-             <p style="font-size: 11px; margin-top: 8px; font-weight: 700; color: #666;">${p.nome}</p>
-          </div>
-       `).join('');
+       const container = document.getElementById('listaParceiros');
+       if (container) {
+           container.innerHTML = parceiros.map(p => `
+              <div style="text-align: center; min-width: 85px; cursor: pointer;" onclick="window.Utils.showToast('Loja selecionada: ${p.nome}', 'info')">
+                 <div style="width: 65px; height: 65px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto; box-shadow: 0 4px 8px rgba(0,0,0,0.05); border: 1px solid #eee;">
+                    <img src="${p.img}" style="width: 40px;">
+                 </div>
+                 <p style="font-size: 11px; margin-top: 8px; font-weight: 700; color: #666;">${p.nome}</p>
+              </div>
+           `).join('');
+       }
     }
 
     function getStatusColor(status) {
-      const cores = {'pendente': '#f1c40f', 'aguardando_entregador': '#e67e22', 'aceito': '#3498db', 'em_entrega': '#9b59b6', 'finalizado': '#2ecc71', 'cancelado': '#E30613'};
+      const cores = {
+          'aguardando_entregador': '#e67e22', 
+          'aceito': '#3498db', 
+          'em_entrega': '#9b59b6', 
+          'finalizado': '#2ecc71', 
+          'cancelado': '#E30613'
+      };
       return cores[status] || '#999';
     }
+
+    document.addEventListener('DOMContentLoaded', initPaginaCliente);
   </script>
 </body>
 </html>
