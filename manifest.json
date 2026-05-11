@@ -1,14 +1,15 @@
 {
   "name": "Benaion Delivery",
   "short_name": "Benaion",
-  "description": "Sistema de Gestão de Entregas Benaion",
-  "id": "/benaion-delivery",
+  "description": "Sistema de Gestão de Entregas Benaion - Laranjal do Jari e Monte Dourado",
+  "id": "/",
   "start_url": "/index.html",
   "scope": "/",
   "display": "standalone",
   "background_color": "#E30613",
   "theme_color": "#E30613",
   "orientation": "portrait",
+  "lang": "pt-BR",
   "icons": [
     {
       "src": "https://i.postimg.cc/T2Vt53JP/Vermelho-delivery-logo-20260227-011329-0005.png",
