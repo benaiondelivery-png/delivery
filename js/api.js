@@ -1,11 +1,12 @@
 // ========================================
-// BENAION DELIVERY - CORE API (V2.2)
+// BENAION DELIVERY - CORE API (V2.3)
 // ========================================
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { 
   getFirestore, collection, addDoc, getDocs, query, where, 
-  doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot 
+  doc, setDoc, getDoc, updateDoc, deleteDoc, onSnapshot,
+  enableIndexedDbPersistence, disableNetwork, enableNetwork
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { 
   getAuth, signInWithRedirect, getRedirectResult, GoogleAuthProvider, 
@@ -34,21 +35,56 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
+// Tentar habilitar persistência offline
+try {
+  enableIndexedDbPersistence(db).catch((err) => {
+    console.warn("Persistência offline não disponível:", err.code);
+  });
+} catch (e) {
+  console.warn("Erro ao configurar persistência:", e);
+}
+
 // ========================================
 // API PRINCIPAL
 // ========================================
 const API = {
   // ---- USUÁRIOS ----
   async getUserProfile(uid) {
-    const docSnap = await getDoc(doc(db, "users", uid));
-    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+    try {
+      const docRef = doc(db, "users", uid);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() };
+      }
+      return null;
+    } catch (e) {
+      console.error("Erro ao buscar perfil:", e.code, e.message);
+      // Se estiver offline, tenta reconectar
+      if (e.code === 'unavailable' || e.message.includes('offline')) {
+        try {
+          await enableNetwork(db);
+          const docSnap = await getDoc(doc(db, "users", uid));
+          if (docSnap.exists()) {
+            return { id: docSnap.id, ...docSnap.data() };
+          }
+        } catch (e2) {
+          console.error("Falha na reconexão:", e2);
+        }
+      }
+      return null;
+    }
   },
 
   async saveUserToFirestore(uid, userData) {
-    await setDoc(doc(db, "users", uid), { 
-      ...userData, 
-      updated_at: Date.now() 
-    }, { merge: true });
+    try {
+      await setDoc(doc(db, "users", uid), { 
+        ...userData, 
+        updated_at: Date.now() 
+      }, { merge: true });
+    } catch (e) {
+      console.error("Erro ao salvar usuário:", e);
+      throw e;
+    }
   },
 
   async updateUser(uid, data) {
@@ -69,11 +105,6 @@ const API = {
 
   async deletePedido(id) {
     return await deleteDoc(doc(db, "pedidos", id));
-  },
-
-  async getPedido(id) {
-    const docSnap = await getDoc(doc(db, "pedidos", id));
-    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
   },
 
   escutarTodosPedidos(callback) {
@@ -113,29 +144,14 @@ const API = {
     const taxa = taxas[destino] || taxas[origem];
     if (taxa) return taxa;
     
-    // Tabela padrão se não houver taxas cadastradas
     const tabelaPadrao = {
-      "Centro": 6.00,
-      "Agreste": 8.00,
-      "Nova esperança": 7.50,
-      "Nova Esperança": 7.50,
-      "Prosperidade": 9.00,
-      "Castanheira": 10.00,
-      "Cajari": 8.50,
-      "Rodovia do gogó": 12.00,
-      "buritizal": 10.00,
-      "Buritizal": 10.00,
-      "Sarney": 7.00,
-      "Nazaré mineiro": 11.00,
-      "mirilandia": 9.50,
-      "Rio branco": 8.00,
-      "José cesário": 10.50,
-      "Malvinas": 7.50,
-      "samaúma": 13.00,
-      "monte dourado": 15.00,
-      "Monte Dourado": 15.00
+      "Centro": 6, "Agreste": 8, "Nova esperança": 7, "Nova Esperança": 7,
+      "Prosperidade": 9, "Castanheira": 6, "Cajari": 7, "Rodovia do gogo": 8,
+      "buritizal": 7, "Buritizal": 7, "Sarney": 8, "Nazaré mineiro": 10,
+      "mirilandia": 6, "Rio branco": 7, "José cesário": 10, "Malvinas": 8,
+      "samaúma": 15, "monte dourado": 15, "Monte Dourado": 15
     };
-    return tabelaPadrao[destino] || tabelaPadrao[origem] || 6.00;
+    return tabelaPadrao[destino] || tabelaPadrao[origem] || 6;
   },
 
   async carregarTaxas() {
@@ -163,14 +179,6 @@ const API = {
 
   async addProduto(produto) {
     return await addDoc(collection(db, "produtos"), produto);
-  },
-
-  async updateProduto(id, data) {
-    return await updateDoc(doc(db, "produtos", id), data);
-  },
-
-  async deleteProduto(id) {
-    return await deleteDoc(doc(db, "produtos", id));
   }
 };
 
@@ -199,12 +207,14 @@ const Auth = {
           await API.saveUserToFirestore(result.user.uid, profile);
         }
 
-        const userData = { id: result.user.uid, ...profile };
-        localStorage.setItem('benaion_user', JSON.stringify(userData));
+        localStorage.setItem('benaion_user', JSON.stringify({ id: result.user.uid, ...profile }));
         window.location.href = `${profile.userType}.html`;
+        return true;
       }
+      return false;
     } catch (e) { 
-      console.error("Erro no Redirecionamento:", e); 
+      console.error("Erro no Redirecionamento:", e);
+      return false;
     }
   },
 
@@ -215,7 +225,11 @@ const Auth = {
   },
 
   getCurrentUser() { 
-    return JSON.parse(localStorage.getItem('benaion_user')); 
+    try {
+      return JSON.parse(localStorage.getItem('benaion_user')); 
+    } catch (e) {
+      return null;
+    }
   },
 
   requireAuth(allowedTypes = []) {
@@ -240,7 +254,6 @@ window.Auth = Auth;
 window.db = db;
 window.auth = auth;
 
-// Carrega taxas ao iniciar
 API.carregarTaxas();
 
 export { API, Auth, db, auth };
