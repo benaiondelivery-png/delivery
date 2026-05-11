@@ -1,217 +1,237 @@
 // ========================================
-// BENAION DELIVERY - JS DO PARCEIRO (V2.2)
+// BENAION DELIVERY - PAINEL DO PARCEIRO (V2.2)
 // ========================================
-import { db } from './api.js';
-import { collection, query, where, onSnapshot, doc, updateDoc, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-let userLoja = null;
-let todosPedidos = [];
+import { API, Auth } from './api.js';
+
+let currentUser = null;
+let pedidosLoja = [];
+let taxaCalculada = 6;
 
 async function init() {
-    if (!window.Auth || !window.API || !window.Utils) {
-        setTimeout(init, 300);
-        return;
-    }
+  if (!window.Auth || !window.API) {
+    setTimeout(init, 300);
+    return;
+  }
 
-    userLoja = window.Auth.getCurrentUser();
-    
-    if (!userLoja || userLoja.userType !== 'parceiro') {
-        window.location.href = 'index.html';
-        return;
-    }
+  if (!window.Auth.requireAuth(['parceiro'])) return;
+  currentUser = window.Auth.getCurrentUser();
+  document.getElementById('lojaNome').textContent = currentUser.storeName || currentUser.name;
 
-    const displayNome = document.getElementById('lojaNome');
-    if (displayNome) displayNome.textContent = userLoja.storeName || userLoja.name;
-
-    escutarPedidos();
-    carregarProdutos();
-}
-
-// 1. MONITORAMENTO DE PEDIDOS EM TEMPO REAL
-function escutarPedidos() {
-    // Filtra apenas pedidos desta loja
-    const q = query(collection(db, "pedidos"), where("lojaId", "==", userLoja.id));
-
-    onSnapshot(q, (snapshot) => {
-        todosPedidos = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        
-        // Ordenação: Mais recentes ou urgentes primeiro
-        todosPedidos.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
-        
-        renderizarPainel();
+  const bairros = [
+    "Agreste", "Nova esperança", "Prosperidade", "Castanheira", "Cajari", 
+    "Rodovia do gogó", "buritizal", "Sarney", "Nazaré mineiro", "centro", 
+    "mirilandia", "Rio branco", "José cesário", "Malvinas", "samaúma", 
+    "monte dourado"
+  ];
+  
+  const comboOrigem = document.getElementById('bairroOrigem');
+  const comboDestino = document.getElementById('bairroDestino');
+  
+  if (comboOrigem && comboDestino) {
+    bairros.forEach(b => {
+      comboOrigem.innerHTML += `<option value="${b}">${b}</option>`;
+      comboDestino.innerHTML += `<option value="${b}">${b}</option>`;
     });
+  }
+
+  window.API.escutarTodosPedidos((pedidos) => {
+    pedidosLoja = pedidos.filter(p => p.lojaId === currentUser.id);
+    renderizar();
+    atualizarDashboard();
+  });
+  
+  calcularTaxaChamada();
+  carregarProdutos();
 }
 
-function renderizarPainel() {
-    const container = document.getElementById('listaPedidos');
-    if (!container) return;
+function calcularTaxaChamada() {
+  const ori = document.getElementById('bairroOrigem');
+  const des = document.getElementById('bairroDestino');
+  if (ori && des) {
+    taxaCalculada = window.API.calcularTaxa(ori.value, des.value);
+    const valorEl = document.getElementById('valorTaxaChamada');
+    if (valorEl) valorEl.textContent = window.Utils.formatCurrency(taxaCalculada);
+  }
+}
 
-    // Filtramos apenas os que não foram finalizados ou cancelados para o painel principal
-    const ativos = todosPedidos.filter(p => !['finalizado', 'cancelado'].includes(p.status));
-    
-    // Atualiza contador no Dashboard
-    const contadorAtivos = document.getElementById('pedidosAtivos');
-    if(contadorAtivos) contadorAtivos.textContent = ativos.length;
+function abrirModalChamar() {
+  const modal = document.getElementById('modalChamar');
+  if (modal) modal.classList.remove('hidden');
+}
 
-    if (ativos.length === 0) {
-        container.innerHTML = `
-            <div style="text-align:center; padding:50px 20px; color:#999;">
-                <i class="fas fa-clipboard-list fa-3x" style="opacity:0.2; margin-bottom:15px;"></i>
-                <p>Nenhum pedido em aberto no momento.</p>
-            </div>`;
-        return;
+function fecharModalChamar() {
+  const modal = document.getElementById('modalChamar');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function handleChamarAvulso(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btnLancarPedido');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "LANÇANDO...";
+  }
+
+  const pedido = {
+    lojaId: currentUser.id,
+    lojaNome: currentUser.storeName || currentUser.name,
+    bairroRetirada: document.getElementById('bairroOrigem').value,
+    retiradaLocal: currentUser.storeName || currentUser.name,
+    bairro: document.getElementById('bairroDestino').value,
+    taxaEntrega: taxaCalculada,
+    valorProdutos: parseFloat(document.getElementById('valorProdutosAvulso').value) || 0,
+    status: 'aguardando_entregador',
+    origem: 'PARCEIRO_AVULSO',
+    produto: 'Entrega Avulsa',
+    created_at: Date.now()
+  };
+
+  try {
+    await window.API.createPedido(pedido);
+    window.Utils.showToast("Pedido lançado no Radar!", "success");
+    fecharModalChamar();
+    e.target.reset();
+  } catch (err) {
+    window.Utils.showToast("Erro ao chamar motoboy", "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "LANÇAR NO RADAR";
     }
+  }
+}
 
-    container.innerHTML = ativos.map(p => {
-        // Regra Benaion: Calcula se o entregador já está esperando há muito tempo
-        const adicionalTempo = window.Utils.calcularAdicionalTempo(p.hora_chegada_mercado);
-        
-        return `
-        <div class="card pedido-card animate__animated animate__fadeIn" 
-             style="margin-bottom:15px; border-left: 6px solid ${getStatusColor(p.status)}; border-radius:12px; padding:16px; background:#fff; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
-            
-            <div style="display:flex; justify-content:space-between; align-items:start;">
-                <div>
-                    <span style="font-size:10px; color:#999; font-weight:bold;">#${p.id.substring(0,6).toUpperCase()}</span>
-                    <div style="font-weight:800; font-size:16px; color:#333;">${p.clienteNome || 'Cliente Avulso'}</div>
-                </div>
-                <span style="background:${getStatusColor(p.status)}; color:white; font-size:10px; padding:4px 10px; border-radius:20px; font-weight:bold;">
-                    ${window.Utils.getStatusText(p.status).toUpperCase()}
-                </span>
-            </div>
-            
-            <div style="margin:12px 0; padding:10px; background:#f9f9f9; border-radius:8px;">
-                <div style="font-size:13px; color:#555; margin-bottom:5px;">
-                    <i class="fas fa-map-marker-alt" style="color:#E30613;"></i> ${p.bairro || 'Retirada na Loja'}
-                </div>
-                <div style="font-size:13px; color:#666;">
-                    <i class="fas fa-shopping-basket"></i> ${p.descricao || 'Itens não especificados'}
-                </div>
-            </div>
+function renderizar() {
+  const lista = document.getElementById('listaPedidos');
+  if (!lista) return;
 
-            ${p.hora_chegada_mercado ? `
-                <div style="display:flex; align-items:center; gap:8px; background:${adicionalTempo > 0 ? '#fff5f5' : '#f5fff8'}; padding:8px; border-radius:6px; margin-bottom:12px; border:1px dashed ${adicionalTempo > 0 ? '#feb2b2' : '#b2febd'}">
-                    <i class="fas fa-stopwatch" style="color:${adicionalTempo > 0 ? '#E30613' : '#2ecc71'}"></i>
-                    <span style="font-size:12px; font-weight:bold; color:${adicionalTempo > 0 ? '#E30613' : '#2ecc71'}">
-                        Aguardando Entregador: ${window.Utils.formatCurrency(adicionalTempo)}
-                    </span>
-                </div>
-            ` : ''}
-
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-                ${renderBotaoAcao(p)}
-                <button class="btn" style="background:#f0f0f0; color:#444; font-size:12px; font-weight:bold; border-radius:8px;" 
-                        onclick="window.Utils.openWhatsApp('${p.clienteTel || ''}', 'Olá, aqui é da ${userLoja.storeName}. Recebemos seu pedido!')">
-                    <i class="fab fa-whatsapp"></i> CONTATO
-                </button>
-            </div>
+  lista.innerHTML = pedidosLoja.length === 0 ? 
+    '<div style="text-align:center; padding:50px; opacity:0.5;"><i class="fas fa-box-open fa-3x"></i><p>Nenhum pedido hoje.</p></div>' : 
+    pedidosLoja.sort((a,b) => (b.created_at || 0) - (a.created_at || 0)).map(p => `
+      <div class="pedido-card ${p.status} animate__animated animate__fadeIn">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <b style="color:#E30613;">#${p.id ? p.id.substring(0,6).toUpperCase() : 'N/A'}</b>
+          <span class="badge-status" style="background:#f0f0f0; color:#333; font-size:9px;">
+            ${window.Utils.getStatusText(p.status).toUpperCase()}
+          </span>
         </div>
-    `}).join('');
-}
-
-// Função auxiliar para definir a cor baseada no status
-function getStatusColor(status) {
-    const cores = {
-        'pendente': '#f1c40f',
-        'preparando': '#3498db',
-        'pronto': '#9b59b6',
-        'aguardando_entregador': '#e67e22',
-        'aceito': '#2ecc71',
-        'em_entrega': '#2ecc71'
-    };
-    return cores[status] || '#ccc';
-}
-
-// Lógica de qual botão mostrar dependendo da fase do pedido
-function renderBotaoAcao(p) {
-    if (p.status === 'pendente') {
-        return `<button class="btn btn-primary" style="background:#E30613; font-size:12px;" onclick="alterarStatus('${p.id}', 'preparando')">ACEITAR PEDIDO</button>`;
-    }
-    if (p.status === 'preparando') {
-        return `<button class="btn" style="background:#3498db; color:white; font-size:12px;" onclick="alterarStatus('${p.id}', 'pronto')">MARCAR COMO PRONTO</button>`;
-    }
-    if (p.status === 'pronto') {
-        return `<button class="btn" style="background:#9b59b6; color:white; font-size:12px;" onclick="alterarStatus('${p.id}', 'aguardando_entregador')">CHAMAR MOTOBOY</button>`;
-    }
-    return `<button class="btn" disabled style="background:#eee; color:#999; font-size:11px;">EM ANDAMENTO</button>`;
-}
-
-// 2. CHAMAR ENTREGADOR (MANUAL/TELEFONE)
-window.lancarPedidoManualLoja = async (e) => {
-    e.preventDefault();
-    const form = e.target;
-    const btn = form.querySelector('button[type="submit"]');
-    
-    try {
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> LANÇANDO...';
-
-        const bairroEntrega = document.getElementById('manualBairroEnt').value;
-        const bairroLoja = userLoja.bairro || "Centro"; 
-        
-        // Calcula taxa automaticamente
-        const taxaEntrega = window.API.calcularTaxa(bairroLoja, bairroEntrega);
-        const valorProdutos = parseFloat(document.getElementById('manualValor').value || 0);
-
-        const novoPedido = {
-            lojaId: userLoja.id,
-            lojaNome: userLoja.storeName || userLoja.name,
-            lojaTel: userLoja.telefone || "",
-            bairroRetirada: bairroLoja,
-            clienteNome: document.getElementById('manualCliente').value,
-            clienteTel: document.getElementById('manualTel')?.value || "",
-            bairro: bairroEntrega,
-            taxaEntrega: taxaEntrega,
-            valorProdutos: valorProdutos,
-            valorTotal: valorProdutos + taxaEntrega,
-            status: 'aguardando_entregador', // Já vai direto para o radar dos motoboys
-            created_at: Date.now(),
-            origem: 'LOJA_PARCEIRA'
-        };
-
-        await addDoc(collection(db, "pedidos"), novoPedido);
-        
-        window.Utils.showToast("Pedido lançado no Radar dos Entregadores!", "success");
-        window.Utils.hideModal('modalPedidoManual');
-        form.reset();
-    } catch (err) {
-        console.error(err);
-        window.Utils.showToast("Erro ao lançar pedido", "error");
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = 'LANÇAR NO RADAR';
-    }
-};
-
-// 3. AÇÕES RÁPIDAS
-window.alterarStatus = async (id, status) => {
-    try {
-        const ref = doc(db, "pedidos", id);
-        await updateDoc(ref, { status: status });
-        window.Utils.showToast(`Pedido agora está: ${window.Utils.getStatusText(status)}`, "info");
-    } catch (e) {
-        window.Utils.showToast("Erro ao mudar status", "error");
-    }
-};
-
-async function carregarProdutos() {
-    const grid = document.getElementById('gridProdutos');
-    if(!grid) return;
-
-    const q = query(collection(db, "produtos"), where("lojaId", "==", userLoja.id));
-    const snap = await getDocs(q);
-    
-    if (snap.empty) {
-        grid.innerHTML = '<p style="grid-column:1/-1; text-align:center; padding:20px; color:#999;">Nenhum produto cadastrado.</p>';
-        return;
-    }
-
-    grid.innerHTML = snap.docs.map(d => `
-        <div class="product-card animate__animated animate__fadeIn" style="background:#fff; border:1px solid #eee; padding:12px; border-radius:10px; text-align:center;">
-            <div style="font-weight:bold; color:#333; margin-bottom:5px;">${d.data().nome}</div>
-            <div style="color:#2ecc71; font-weight:bold;">${window.Utils.formatCurrency(d.data().preco)}</div>
+        <div style="margin:10px 0; font-size:13px;">
+          <p>📍 <b>Para:</b> ${p.bairro || 'N/A'}</p>
+          <p>🛵 <b>Entregador:</b> ${p.entregadorNome || 'Buscando...'}</p>
         </div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-weight:bold; color:#27ae60;">${window.Utils.formatCurrency(p.taxaEntrega)}</span>
+          <div style="display:flex; gap:5px;">
+            ${p.status === 'aguardando_entregador' ? 
+              `<button class="btn btn-small" style="background:#ff4757; color:white; border:none; padding:5px 10px;" onclick="cancelarPedidoLoja('${p.id}')">Cancelar</button>` : 
+              `<button class="btn btn-small btn-outline" onclick="window.Utils.showToast('Entregador: ${p.entregadorNome || 'N/A'}', 'info')">Info</button>`
+            }
+          </div>
+        </div>
+      </div>
     `).join('');
 }
 
-document.addEventListener('DOMContentLoaded', init);
+async function cancelarPedidoLoja(id) {
+  if (confirm("Deseja remover este pedido do radar?")) {
+    try {
+      await window.API.deletePedido(id);
+      window.Utils.showToast("Pedido cancelado.");
+    } catch (e) {
+      window.Utils.showToast("Erro ao cancelar.", "error");
+    }
+  }
+}
+
+function atualizarDashboard() {
+  const ativos = pedidosLoja.filter(p => !['finalizado', 'cancelado'].includes(p.status));
+  const concluidos = pedidosLoja.filter(p => p.status === 'finalizado');
+  const faturamento = concluidos.reduce((acc, p) => acc + (p.valorProdutos || 0), 0);
+
+  const elAtivos = document.getElementById('pedidosAtivos');
+  const elVendas = document.getElementById('vendasHoje');
+  const elFaturamento = document.getElementById('faturamentoHoje');
+
+  if (elAtivos) elAtivos.textContent = ativos.length;
+  if (elVendas) elVendas.textContent = concluidos.length;
+  if (elFaturamento) elFaturamento.textContent = window.Utils.formatCurrency(faturamento);
+}
+
+// ---- PRODUTOS ----
+async function carregarProdutos() {
+  const grid = document.getElementById('gridProdutos');
+  if (!grid || !currentUser) return;
+
+  try {
+    const produtos = await window.API.getProdutosLoja(currentUser.id);
+    
+    if (produtos.length === 0) {
+      grid.innerHTML = '<p style="grid-column:1/-1; text-align:center; padding:20px; color:#999;">Nenhum produto cadastrado.</p>';
+      return;
+    }
+
+    grid.innerHTML = produtos.map(d => `
+      <div class="product-card animate__animated animate__fadeIn">
+        <div style="font-weight:bold; color:#333; margin-bottom:5px;">${d.nome}</div>
+        <div style="color:#2ecc71; font-weight:bold;">${window.Utils.formatCurrency(d.preco)}</div>
+      </div>
+    `).join('');
+  } catch (e) {
+    console.error("Erro ao carregar produtos:", e);
+  }
+}
+
+async function handleAddProduto(e) {
+  e.preventDefault();
+  const nome = document.getElementById('pNome').value;
+  const preco = parseFloat(document.getElementById('pPreco').value);
+
+  try {
+    await window.API.addProduto({
+      lojaId: currentUser.id,
+      nome: nome,
+      preco: preco,
+      created_at: Date.now()
+    });
+    window.Utils.showToast("Produto cadastrado!", "success");
+    document.getElementById('modalProduto').classList.add('hidden');
+    e.target.reset();
+    carregarProdutos();
+  } catch (err) {
+    window.Utils.showToast("Erro ao cadastrar produto.", "error");
+  }
+}
+
+// ---- TABS ----
+function switchTab(tab) {
+  document.querySelectorAll('.tab-section').forEach(s => s.classList.add('hidden'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  
+  const aba = document.getElementById(`aba-${tab}`);
+  const nav = document.getElementById(`nav-${tab}`);
+  
+  if (aba) aba.classList.remove('hidden');
+  if (nav) nav.classList.add('active');
+  
+  if (tab === 'produtos') carregarProdutos();
+}
+
+// Expor funções globalmente
+window.calcularTaxaChamada = calcularTaxaChamada;
+window.abrirModalChamar = abrirModalChamar;
+window.fecharModalChamar = fecharModalChamar;
+window.cancelarPedidoLoja = cancelarPedidoLoja;
+window.switchTab = switchTab;
+window.handleAddProduto = handleAddProduto;
+
+// Configurar event listeners
+document.addEventListener('DOMContentLoaded', () => {
+  init();
+  
+  const formChamar = document.getElementById('formChamarAvulso');
+  if (formChamar) formChamar.onsubmit = handleChamarAvulso;
+  
+  const formProduto = document.getElementById('formAddProduto');
+  if (formProduto) formProduto.onsubmit = handleAddProduto;
+});
