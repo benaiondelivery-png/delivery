@@ -7,6 +7,13 @@
   <title>Admin - BENAION DELIVERY</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .hidden { display: none; }
+    .stat-card { padding: 15px; border-radius: 12px; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
+    .stat-value { font-size: 20px; font-weight: bold; margin-bottom: 5px; }
+    .stat-label { font-size: 11px; text-transform: uppercase; opacity: 0.7; }
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -28,59 +35,55 @@
     </header>
 
     <main class="page">
+      <!-- Stats -->
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-value" id="statHoje">0</div>
+          <div class="stat-value" id="statPedidosHoje">0</div>
           <div class="stat-label">Pedidos Hoje</div>
         </div>
         <div class="stat-card" style="background: var(--primary-yellow);">
           <div class="stat-value" id="statFaturamento">R$ 0,00</div>
-          <div class="stat-label">Taxas Acumuladas</div>
+          <div class="stat-label">Taxas Hoje</div>
         </div>
         <div class="stat-card" style="background: #2ecc71; color: white;">
-          <div class="stat-value" id="statAtivos">0</div>
-          <div class="stat-label">Em Entrega</div>
+          <div class="stat-value" id="statPedidosAtivos">0</div>
+          <div class="stat-label">Ativos Agora</div>
         </div>
       </div>
 
+      <!-- Abas -->
       <div class="tabs-container" style="display: flex; gap: 10px; margin: 20px 0; overflow-x: auto;">
-        <button class="btn btn-small btn-primary" onclick="mostrarAba('pedidos')">📋 Todos Pedidos</button>
-        <button class="btn btn-small btn-outline" onclick="mostrarAba('parceiros')">🏪 Parceiros</button>
-        <button class="btn btn-small btn-outline" onclick="mostrarAba('usuarios')">👥 Usuários</button>
+        <button class="btn btn-small btn-primary btn-filter active" onclick="window.filtrarPedidos('todos')">📋 Todos</button>
+        <button class="btn btn-small btn-outline btn-filter" onclick="window.filtrarPedidos('aguardando_entregador')">🔍 No Radar</button>
+        <button class="btn btn-small btn-outline btn-filter" onclick="window.filtrarPedidos('aceito')">🛵 Em Entrega</button>
+        <button class="btn btn-small btn-outline btn-filter" onclick="window.filtrarPedidos('finalizado')">✅ Finalizados</button>
+        <button class="btn btn-small btn-outline btn-filter" onclick="window.filtrarPedidos('cancelado')">❌ Cancelados</button>
       </div>
 
-      <div id="abaPedidos">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-          <h3>Monitoramento de Pedidos</h3>
-          <button class="btn btn-small" onclick="Utils.showModal('novoPedidoModal')">+ Criar Manual</button>
-        </div>
-        <div id="listaPedidosAdmin"></div>
+      <!-- Taxas -->
+      <div class="card" style="margin-bottom: 20px;">
+        <h3 style="margin-bottom: 15px;">📊 Tabela de Taxas por Bairro</h3>
+        <div id="listaConfigTaxas"></div>
+        <button id="btnSalvarTaxas" class="btn btn-primary" onclick="window.salvarNovasTaxas()" style="margin-top: 15px;">
+          <i class="fas fa-save"></i> Salvar Taxas
+        </button>
       </div>
 
-      <div id="abaParceiros" class="hidden">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-          <h3>Lojas Parceiras</h3>
-          <button class="btn btn-small" onclick="Utils.showModal('novoParceiroModal')">+ Nova Loja</button>
-        </div>
-        <div id="listaParceirosAdmin"></div>
-      </div>
-
-      <div id="abaUsuarios" class="hidden">
-        <h3>Entregadores e Clientes</h3>
-        <div id="listaUsuariosAdmin"></div>
-      </div>
-
+      <!-- Lista de Pedidos -->
+      <h3 style="margin-bottom: 15px;">📦 Monitoramento</h3>
+      <div id="containerPedidosAdmin"></div>
     </main>
   </div>
 
+  <!-- Modal Lançar Pedido Manual -->
   <div class="modal" id="novoPedidoModal">
     <div class="modal-content">
       <div class="modal-header">
         <h3 class="modal-title">Lançar Pedido (Admin)</h3>
-        <button class="modal-close" onclick="Utils.hideModal('novoPedidoModal')">&times;</button>
+        <button class="modal-close" onclick="window.Utils.hideModal('novoPedidoModal')">&times;</button>
       </div>
       <div class="modal-body">
-        <form onsubmit="lancarPedidoManual(event)">
+        <form onsubmit="window.lancarPedidoManual(event)">
           <div class="form-group">
             <label>Nome do Cliente</label>
             <input type="text" id="manualCliente" class="form-control" required>
@@ -109,157 +112,9 @@
     </div>
   </div>
 
+  <!-- Scripts -->
   <script src="js/utils.js"></script>
   <script type="module" src="js/api.js"></script>
-
-  <script>
-    let todosPedidos = [];
-
-    // Função de inicialização blindada
-    async function initAdmin() {
-      // 1. Aguarda as ferramentas globais carregarem
-      if (!window.Auth || !window.API || !window.auth) {
-        setTimeout(initAdmin, 300);
-        return;
-      }
-
-      // 2. Proteção de Rota (Só Admin entra)
-      if (!window.Auth.requireAuth(['admin'])) return;
-      
-      console.log("🛠️ Admin Benaion: Conectado com sucesso.");
-
-      // 3. Monitoramento em Tempo Real (Ouve o Firebase sem precisar de refresh)
-      window.API.escutarTodosPedidos((pedidos) => {
-        todosPedidos = pedidos;
-        atualizarDashboard();
-        renderizarPedidosAdmin();
-      });
-    }
-
-    document.addEventListener('DOMContentLoaded', initAdmin);
-
-    function atualizarDashboard() {
-      const hoje = new Date().toLocaleDateString();
-      
-      // Filtra pedidos do dia atual para o faturamento
-      const pedidosHoje = todosPedidos.filter(p => {
-        const dataPedido = p.created_at?.seconds ? new Date(p.created_at.seconds * 1000) : new Date(p.created_at);
-        return dataPedido.toLocaleDateString() === hoje;
-      });
-      
-      // Soma apenas as taxas de entrega para o faturamento do Admin
-      const faturamento = pedidosHoje.reduce((acc, curr) => acc + (curr.taxaEntrega || 0), 0);
-      
-      // Pedidos que estão na rua agora
-      const ativos = todosPedidos.filter(p => ['aceito', 'em_entrega'].includes(p.status)).length;
-
-      document.getElementById('statHoje').textContent = pedidosHoje.length;
-      document.getElementById('statFaturamento').textContent = window.Utils.formatCurrency(faturamento);
-      document.getElementById('statAtivos').textContent = ativos;
-    }
-
-    function renderizarPedidosAdmin() {
-      const container = document.getElementById('listaPedidosAdmin');
-      if (!container) return;
-
-      // Ordenar: Mais recentes primeiro
-      const ordenados = [...todosPedidos].sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
-
-      container.innerHTML = ordenados.map(p => `
-        <div class="card" style="margin-bottom: 12px; border-left: 6px solid ${getStatusColor(p.status)}; border-radius: 12px;">
-          <div style="display:flex; justify-content:space-between; align-items: center; margin-bottom: 8px;">
-            <b style="color: #333;">#${p.id.substring(0,6).toUpperCase()}</b>
-            <span class="badge" style="background: ${getStatusColor(p.status)}; color: white; padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: bold;">
-                ${window.Utils.getStatusText(p.status).toUpperCase()}
-            </span>
-          </div>
-          
-          <div style="font-size:13px; color: #555;">
-            <p style="margin: 4px 0;"><i class="fas fa-store"></i> <b>Origem:</b> ${p.bairroRetirada}</p>
-            <p style="margin: 4px 0;"><i class="fas fa-motorcycle"></i> <b>Destino:</b> ${p.bairro}</p>
-            <p style="margin: 4px 0;"><i class="fas fa-user"></i> <b>Entregador:</b> ${p.entregadorNome || '<span style="color:#E30613; font-weight:bold;">BUSCANDO...</span>'}</p>
-          </div>
-
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
-             <span style="font-weight: bold; color: #2ecc71;">${window.Utils.formatCurrency(p.taxaEntrega)}</span>
-             <button class="btn btn-small btn-outline" onclick="cancelarPedidoAdmin('${p.id}')" style="color: #E30613; border-color: #E30613; font-size: 10px;">
-                <i class="fas fa-trash"></i> REMOVER
-             </button>
-          </div>
-        </div>
-      `).join('');
-    }
-
-    function getStatusColor(status) {
-      const cores = {
-        'pendente': '#f1c40f',
-        'aguardando_entregador': '#e67e22',
-        'aceito': '#3498db',
-        'em_entrega': '#9b59b6',
-        'finalizado': '#2ecc71',
-        'cancelado': '#E30613'
-      };
-      return cores[status] || '#999';
-    }
-
-    function mostrarAba(aba) {
-      document.getElementById('abaPedidos').classList.toggle('hidden', aba !== 'pedidos');
-      document.getElementById('abaParceiros').classList.toggle('hidden', aba !== 'parceiros');
-      document.getElementById('abaUsuarios').classList.toggle('hidden', aba !== 'usuarios');
-      
-      // Estilo dos botões de aba
-      document.querySelectorAll('.tabs-container .btn').forEach(btn => {
-          btn.classList.replace('btn-primary', 'btn-outline');
-      });
-      event.target.classList.replace('btn-outline', 'btn-primary');
-    }
-
-    async function lancarPedidoManual(e) {
-      e.preventDefault();
-      const btn = e.target.querySelector('button');
-      btn.disabled = true;
-
-      const data = {
-        clienteNome: document.getElementById('manualCliente').value,
-        produto: document.getElementById('manualProduto').value,
-        bairroRetirada: document.getElementById('manualBairroRet').value,
-        bairro: document.getElementById('manualBairroEnt').value,
-        taxaEntrega: parseFloat(document.getElementById('manualTaxa').value),
-        status: 'aguardando_entregador',
-        created_at: Date.now(),
-        origem: 'ADMIN'
-      };
-
-      try {
-        await window.API.createPedido(data);
-        window.Utils.showToast("Pedido lançado no Radar!", "success");
-        window.Utils.hideModal('novoPedidoModal');
-        e.target.reset();
-      } catch (err) {
-        window.Utils.showToast("Erro ao lançar pedido.", "error");
-      } finally {
-        btn.disabled = false;
-      }
-    }
-
-    async function cancelarPedidoAdmin(id) {
-      if(confirm("Deseja realmente excluir este pedido? Esta ação não pode ser desfeita.")) {
-        try {
-            await window.API.deletePedido(id);
-            window.Utils.showToast("Pedido removido!", "success");
-        } catch (err) {
-            window.Utils.showToast("Erro ao remover.", "error");
-        }
-      }
-    }
-  </script>
-
-  <style>
-    .hidden { display: none; }
-    .stat-card { padding: 15px; border-radius: 12px; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
-    .stat-value { font-size: 20px; font-weight: bold; margin-bottom: 5px; }
-    .stat-label { font-size: 11px; text-transform: uppercase; opacity: 0.7; }
-    .stats-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px; }
-  </style>
+  <script type="module" src="js/admin.js"></script>
 </body>
 </html>
