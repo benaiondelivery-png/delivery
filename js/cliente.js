@@ -1,179 +1,160 @@
 // ========================================
-// BENAION DELIVERY - CLIENTE (V2.1)
+// BENAION DELIVERY - PAINEL DO CLIENTE (V2.2)
 // ========================================
-import { db, API, Auth } from './api.js';
-import { collection, query, where, onSnapshot, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-let meusPedidos = [];
-let user = null;
+let currentUser = null;
+let taxaCalculada = 6.00;
 
-async function initCliente() {
-    // 1. Aguarda carregamento dos módulos globais
-    if (!window.Auth || !window.API || !window.Utils) {
-        setTimeout(initCliente, 300);
-        return;
-    }
+async function initPaginaCliente() {
+  if (!window.Auth || !window.API || !window.auth) {
+    setTimeout(initPaginaCliente, 300);
+    return;
+  }
 
-    // 2. Proteção de Rota
-    if (!window.Auth.requireAuth(['cliente'])) return;
-    user = window.Auth.getCurrentUser();
-    
-    // 3. UI Inicial
-    const nomeEl = document.getElementById('clienteNome'); // Ajustado para bater com seu cliente.html
-    if (nomeEl) nomeEl.textContent = `Olá, ${user.name.split(' ')[0]}`;
-    
-    // 4. Inicia monitoramento
-    escutarMeusPedidos();
+  if (!window.Auth.requireAuth(['cliente'])) return;
+  currentUser = window.Auth.getCurrentUser();
+
+  document.getElementById('clienteNome').textContent = "Olá, " + currentUser.name.split(' ')[0];
+
+  window.API.escutarTodosPedidos((todos) => {
+    const meusPedidos = todos.filter(p => p.clienteId === currentUser.id);
+    meusPedidos.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+    document.getElementById('contadorPedidos').textContent = meusPedidos.length;
+    renderizarMeusPedidos(meusPedidos);
+  });
+
+  carregarParceiros();
 }
 
-// 1. MONITORAMENTO REAL-TIME
-function escutarMeusPedidos() {
-    const q = query(
-        collection(db, "pedidos"), 
-        where("clienteId", "==", user.id)
-    );
-
-    onSnapshot(q, (snapshot) => {
-        meusPedidos = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        
-        // Ordena: Mais recentes primeiro (Lida com milissegundos ou Firebase Timestamps)
-        meusPedidos.sort((a, b) => {
-            const timeA = a.created_at?.seconds ? a.created_at.seconds * 1000 : a.created_at;
-            const timeB = b.created_at?.seconds ? b.created_at.seconds * 1000 : b.created_at;
-            return (timeB || 0) - (timeA || 0);
-        });
-
-        renderizarListaPedidos();
-        atualizarResumo();
-    });
+function atualizarTaxaEstimada() {
+  const bairroDestino = document.getElementById('pedidoBairroEntrega').value;
+  if (window.API && window.API.calcularTaxa) {
+    taxaCalculada = window.API.calcularTaxa(null, bairroDestino);
+  } else if (window.TAXAS_LOCAIS && window.TAXAS_LOCAIS[bairroDestino]) {
+    taxaCalculada = window.TAXAS_LOCAIS[bairroDestino];
+  } else {
+    taxaCalculada = 6.00;
+  }
+  const txt = document.getElementById('txtTaxaEstimada');
+  if (txt) txt.textContent = window.Utils.formatCurrency(taxaCalculada);
 }
 
-// 2. RENDERIZAÇÃO DOS CARDS
-function renderizarListaPedidos() {
-    const container = document.getElementById('listaPedidos');
-    if (!container) return;
+function renderizarMeusPedidos(pedidos) {
+  const container = document.getElementById('listaPedidos');
+  if (!container) return;
 
-    if (meusPedidos.length === 0) {
-        container.innerHTML = `
-            <div style="text-align:center; padding:40px; color:#999;">
-                <i class="fas fa-shopping-bag fa-3x" style="margin-bottom:15px; opacity:0.2;"></i>
-                <p>Nenhum pedido realizado ainda.</p>
-            </div>`;
-        return;
-    }
+  if (pedidos.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 30px; background: white; border-radius: 15px; color: #999;">
+        <i class="fas fa-box-open fa-3x" style="opacity:0.2; margin-bottom:10px;"></i>
+        <p>Você ainda não fez nenhum pedido.</p>
+      </div>`;
+    return;
+  }
 
-    container.innerHTML = meusPedidos.map(p => `
-        <div class="card pedido-item animate__animated animate__fadeInUp" 
-             style="margin-bottom:12px; border-left: 5px solid ${getStatusColor(p.status)}; border-radius:12px; padding:15px; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
-            
-            <div style="display:flex; justify-content:space-between; align-items:start;">
-                <div>
-                    <span style="font-size:10px; color:#999; font-weight:bold;">#${p.id.substring(0,6).toUpperCase()}</span>
-                    <h4 style="margin:2px 0; color:#333; font-size:15px;">${p.lojaNome || 'Pedido Avulso'}</h4>
-                </div>
-                <span style="background:${getStatusColor(p.status)}; color:white; font-size:10px; padding:4px 10px; border-radius:20px; font-weight:bold;">
-                    ${window.Utils.getStatusText(p.status).toUpperCase()}
-                </span>
-            </div>
-            
-            <div style="margin:12px 0; font-size:13px; color:#666;">
-                <p style="margin:4px 0;"><i class="fas fa-map-marker-alt" style="color:#E30613; width:15px;"></i> Entregar em: <b>${p.bairro}</b></p>
-                <p style="margin:4px 0;"><i class="fas fa-receipt" style="color:#E30613; width:15px;"></i> ${p.descricao || 'Sem descrição'}</p>
-            </div>
-
-            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #f5f5f5; margin-top:10px; padding-top:10px;">
-                <div>
-                    <small style="font-size:10px; color:#999; display:block;">VALOR TOTAL</small>
-                    <span style="font-weight:bold; color:#2ecc71; font-size:16px;">${window.Utils.formatCurrency(p.valorTotal)}</span>
-                </div>
-                <button class="btn btn-small" onclick="repetirPedido('${p.id}')" 
-                        style="background:#f8f9fa; border:1px solid #ddd; color:#555; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:bold;">
-                    <i class="fas fa-redo-alt" style="margin-right:5px;"></i> REPETIR
-                </button>
-            </div>
-        </div>
-    `).join('');
+  container.innerHTML = pedidos.map(p => `
+    <div class="card animate__animated animate__fadeInUp" style="margin-bottom: 15px; border-left: 6px solid ${getStatusColor(p.status)}; border-radius: 15px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+        <b style="color: #E30613; font-size: 14px;">#${p.id.substring(0,6).toUpperCase()}</b>
+        <span style="background:${getStatusColor(p.status)}; color:white; font-size:10px; padding:4px 10px; border-radius:20px; font-weight:bold;">
+          ${window.Utils.getStatusText(p.status).toUpperCase()}
+        </span>
+      </div>
+      <div style="font-size: 13px; color: #555;">
+        <p style="margin-bottom: 5px;"><i class="fas fa-store" style="color: #E30613;"></i> <b>Retirada:</b> ${p.retiradaLocal || 'Loja'} (${p.bairroRetirada || 'N/A'})</p>
+        <p><i class="fas fa-map-marker-alt" style="color: #3498db;"></i> <b>Entrega:</b> ${p.entregaLocal || 'Endereço'} (${p.bairro || 'N/A'})</p>
+        ${p.entregadorNome ? `<p><i class="fas fa-motorcycle" style="color: #27ae60;"></i> <b>Entregador:</b> ${p.entregadorNome}</p>` : ''}
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid #f9f9f9;">
+        <span style="font-weight:900; color:#27ae60; font-size: 16px;">${window.Utils.formatCurrency(p.taxaEntrega)}</span>
+        ${p.status === 'aguardando_entregador' ? 
+          `<button onclick="cancelarMeuPedido('${p.id}')" style="background:none; border:none; color:#999; font-size:11px; cursor:pointer;"><i class="fas fa-times"></i> CANCELAR</button>` 
+          : ''}
+      </div>
+    </div>
+  `).join('');
 }
 
-// 3. LOGICA DE ENVIO
-window.fazerNovoPedido = async (e) => {
-    e.preventDefault();
-    const btn = e.target.querySelector('button[type="submit"]');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ENVIANDO...';
-
+async function cancelarMeuPedido(id) {
+  if (confirm("Deseja cancelar este pedido?")) {
     try {
-        const bairroEntrega = document.getElementById('entregaBairro').value;
-        const bairroLoja = "Centro"; // Bairro padrão de retirada para pedidos de clientes
-        
-        // Usa a função inteligente da API que já conhece a tabela de taxas
-        const taxaEntrega = window.API.calcularTaxa(bairroLoja, bairroEntrega);
-        const valorProdutos = parseFloat(document.getElementById('valorProdutos').value || 0);
-
-        const novoPedido = {
-            clienteId: user.id,
-            clienteNome: user.name,
-            clienteTel: user.telefone || "",
-            status: 'pendente',
-            bairro: bairroEntrega,
-            bairroRetirada: bairroLoja,
-            taxaEntrega: taxaEntrega,
-            valorProdutos: valorProdutos,
-            valorTotal: valorProdutos + taxaEntrega,
-            descricao: document.getElementById('pedidoDesc').value,
-            created_at: Date.now(),
-            origem: 'APP_CLIENTE'
-        };
-
-        await addDoc(collection(db, "pedidos"), novoPedido);
-        
-        window.Utils.showToast("Pedido solicitado com sucesso!", "success");
-        window.Utils.hideModal('modalNovoPedido');
-        e.target.reset();
-        
-    } catch (error) {
-        console.error(error);
-        window.Utils.showToast("Erro ao processar. Verifique sua conexão.", "error");
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = 'SOLICITAR ENTREGA';
+      await window.API.deletePedido(id);
+      window.Utils.showToast("Pedido cancelado com sucesso.");
+    } catch (e) {
+      window.Utils.showToast("Erro ao cancelar. Tente novamente.", "error");
     }
-};
+  }
+}
 
-// 4. AUXILIARES
+async function handleNovoPedido(e) {
+  e.preventDefault();
+  const btn = e.target.querySelector('button');
+  btn.disabled = true;
+
+  const data = {
+    clienteId: currentUser.id,
+    clienteNome: currentUser.name,
+    clienteTel: currentUser.telefone || '',
+    bairroRetirada: document.getElementById('pedidoBairroRetirada').value,
+    retiradaLocal: document.getElementById('pedidoRetiradaLocal').value,
+    bairro: document.getElementById('pedidoBairroEntrega').value,
+    entregaLocal: document.getElementById('pedidoEntregaLocal').value,
+    produto: document.getElementById('pedidoProduto').value,
+    taxaEntrega: taxaCalculada,
+    status: 'aguardando_entregador',
+    created_at: Date.now()
+  };
+
+  try {
+    await window.API.createPedido(data);
+    window.Utils.showToast("Pedido enviado ao radar!", "success");
+    window.Utils.hideModal('novoPedidoModal');
+    e.target.reset();
+    atualizarTaxaEstimada();
+  } catch (err) {
+    window.Utils.showToast("Erro ao processar o pedido.", "error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function carregarParceiros() {
+  const parceiros = [
+    {nome: "Pizzaria", img: "https://cdn-icons-png.flaticon.com/512/3132/3132693.png"},
+    {nome: "Burguer 10", img: "https://cdn-icons-png.flaticon.com/512/3075/3075977.png"},
+    {nome: "Farmácia", img: "https://cdn-icons-png.flaticon.com/512/4320/4320337.png"},
+    {nome: "Distribuidora", img: "https://cdn-icons-png.flaticon.com/512/952/952306.png"}
+  ];
+  const container = document.getElementById('listaParceiros');
+  if (container) {
+    container.innerHTML = parceiros.map(p => `
+      <div style="text-align: center; min-width: 85px; cursor: pointer;" onclick="window.Utils.showToast('Loja selecionada: ${p.nome}', 'info')">
+        <div style="width: 65px; height: 65px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto; box-shadow: 0 4px 8px rgba(0,0,0,0.05); border: 1px solid #eee;">
+          <img src="${p.img}" style="width: 40px;">
+        </div>
+        <p style="font-size: 11px; margin-top: 8px; font-weight: 700; color: #666;">${p.nome}</p>
+      </div>
+    `).join('');
+  }
+}
+
 function getStatusColor(status) {
-    const cores = {
-        'pendente': '#f1c40f',
-        'preparando': '#3498db',
-        'pronto': '#9b59b6',
-        'aguardando_entregador': '#e67e22',
-        'aceito': '#2ecc71',
-        'em_entrega': '#2ecc71',
-        'finalizado': '#27ae60',
-        'cancelado': '#e30613'
-    };
-    return cores[status] || '#95a5a6';
+  const cores = {
+    'aguardando_entregador': '#e67e22', 
+    'aceito': '#3498db', 
+    'em_entrega': '#9b59b6', 
+    'finalizado': '#2ecc71', 
+    'cancelado': '#E30613',
+    'pendente': '#f1c40f',
+    'preparando': '#3498db',
+    'pronto': '#2ecc71'
+  };
+  return cores[status] || '#999';
 }
 
-function atualizarResumo() {
-    const concluidos = meusPedidos.filter(p => p.status === 'finalizado');
-    const totalGasto = concluidos.reduce((acc, p) => acc + (p.valorTotal || 0), 0);
-    
-    const countEl = document.getElementById('pedidosConcluidosCount'); // Ajustado para seu HTML
-    const totalEl = document.getElementById('totalGastoValor');
-    
-    if (countEl) countEl.textContent = concluidos.length;
-    if (totalEl) totalEl.textContent = window.Utils.formatCurrency(totalGasto);
-}
+// Expor funções para o escopo global
+window.atualizarTaxaEstimada = atualizarTaxaEstimada;
+window.cancelarMeuPedido = cancelarMeuPedido;
+window.handleNovoPedido = handleNovoPedido;
 
-window.repetirPedido = (id) => {
-    const anterior = meusPedidos.find(p => p.id === id);
-    if (anterior) {
-        document.getElementById('pedidoDesc').value = anterior.descricao;
-        document.getElementById('entregaBairro').value = anterior.bairro;
-        window.Utils.showModal('modalNovoPedido');
-        window.Utils.showToast("Dados do pedido anterior carregados!");
-    }
-};
-
-document.addEventListener('DOMContentLoaded', initCliente);
+document.addEventListener('DOMContentLoaded', initPaginaCliente);
