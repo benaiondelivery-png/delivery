@@ -136,130 +136,142 @@
   </div>
 
   <script src="js/utils.js"></script>
-  <script type="module" src="js/api.js"></script>
+<script type="module" src="js/api.js"></script>
 
-  <script>
-    const loading = document.getElementById('loadingOverlay');
+<script>
+  const loading = document.getElementById('loadingOverlay');
 
-    // ========================================
-    // LOGICA DE AUTO-LOGIN E REDIRECIONAMENTO
-    // ========================================
-    window.addEventListener('load', async () => {
-      // 1. Aguarda um pequeno tempo para garantir que os módulos (Auth) carregaram
-      setTimeout(async () => {
-        // 2. Verifica se está voltando do login do Google
-        if (window.Auth && typeof window.Auth.handleRedirect === 'function') {
-           await window.Auth.handleRedirect();
+  // Auto-login ao carregar
+  window.addEventListener('load', async () => {
+    setTimeout(async () => {
+      if (window.Auth && typeof window.Auth.handleRedirect === 'function') {
+         await window.Auth.handleRedirect();
+      }
+
+      const savedUser = localStorage.getItem('benaion_user');
+      if (savedUser) {
+        const user = JSON.parse(savedUser);
+        if (user && user.userType) {
+          window.location.href = `${user.userType}.html`;
         }
+      }
+    }, 500);
+  });
 
-        // 3. Verifica se já existe uma sessão ativa no dispositivo
-        const savedUser = localStorage.getItem('benaion_user');
-        if (savedUser) {
-          const user = JSON.parse(savedUser);
-          if (user && user.userType) {
-            window.location.href = `${user.userType}.html`;
-          }
-        }
-      }, 500);
-    });
+  function toggleParceiroFields() {
+    const type = document.getElementById('registerUserType').value;
+    document.getElementById('parceiroExtraFields').style.display = (type === 'parceiro') ? 'block' : 'none';
+  }
 
-    function toggleParceiroFields() {
-      const type = document.getElementById('registerUserType').value;
-      document.getElementById('parceiroExtraFields').style.display = (type === 'parceiro') ? 'block' : 'none';
+  function handleOpenRegister() { 
+    document.getElementById('registerModal').style.display = 'flex'; 
+  }
+  
+  function handleCloseRegister() { 
+    document.getElementById('registerModal').style.display = 'none'; 
+  }
+
+  async function handleEmailLogin(event) {
+    event.preventDefault();
+    if (!window.auth) { 
+      window.Utils.showToast("Sistema carregando... Tente novamente", "info"); 
+      return; 
     }
 
-    function handleOpenRegister() { document.getElementById('registerModal').style.display = 'flex'; }
-    function handleCloseRegister() { document.getElementById('registerModal').style.display = 'none'; }
+    loading.style.display = 'flex';
+    const email = document.getElementById('email').value;
+    const pass = document.getElementById('password').value;
 
-    async function handleEmailLogin(event) {
-      event.preventDefault();
-      if (!window.Auth || !window.auth) { 
-        window.Utils.showToast("Sistema carregando... Tente novamente", "info"); 
-        return; 
-      }
-
-      loading.style.display = 'flex';
-      const email = document.getElementById('email').value;
-      const pass = document.getElementById('password').value;
-
-      try {
-        const { signInWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
-        const userCredential = await signInWithEmailAndPassword(window.auth, email, pass);
-        
-        const profile = await window.API.getUserProfile(userCredential.user.uid);
-        if (profile) {
-            localStorage.setItem('benaion_user', JSON.stringify({ id: userCredential.user.uid, ...profile }));
-            window.location.href = `${profile.userType}.html`;
-        } else {
-            throw new Error("Perfil não encontrado");
-        }
-      } catch (e) {
-        loading.style.display = 'none';
-        window.Utils.showToast("E-mail ou senha incorretos", "error");
-      }
-    }
-
-    async function handleRegister(event) {
-      event.preventDefault();
-      if (!window.API || !window.auth) { 
-        window.Utils.showToast("Aguarde o carregamento do banco...", "info"); 
-        return; 
-      }
+    try {
+      const { signInWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
+      const userCredential = await signInWithEmailAndPassword(window.auth, email, pass);
       
-      loading.style.display = 'flex';
-
-      try {
-        const { createUserWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
-        
-        const email = document.getElementById('registerEmail').value;
-        const pass = document.getElementById('registerPassword').value;
-        const userType = document.getElementById('registerUserType').value;
-
-        const userCredential = await createUserWithEmailAndPassword(window.auth, email, pass);
-        
-        const dados = {
-          name: document.getElementById('registerName').value,
-          email: email,
-          userType: userType,
-          storeName: (userType === 'parceiro') ? document.getElementById('storeName').value : null,
-          created_at: Date.now()
-        };
-
-        await window.API.saveUserToFirestore(userCredential.user.uid, dados);
-        localStorage.setItem('benaion_user', JSON.stringify({ id: userCredential.user.uid, ...dados }));
-        window.location.href = `${userType}.html`;
-      } catch (e) {
-        loading.style.display = 'none';
-        let msg = "Erro ao cadastrar";
-        if (e.message.includes("email-already")) msg = "Este e-mail já está em uso";
-        window.Utils.showToast(msg, "error");
+      const profile = await window.API.getUserProfile(userCredential.user.uid);
+      if (profile) {
+        localStorage.setItem('benaion_user', JSON.stringify({ id: userCredential.user.uid, ...profile }));
+        window.location.href = `${profile.userType}.html`;
+      } else {
+        throw new Error("Perfil não encontrado");
       }
+    } catch (e) {
+      loading.style.display = 'none';
+      console.error(e);
+      window.Utils.showToast("E-mail ou senha incorretos", "error");
     }
+  }
 
-    async function handleGoogleLogin() {
-      if (!window.Auth) { window.Utils.showToast("Aguarde o carregamento...", "info"); return; }
-      loading.style.display = 'flex';
-      try {
-        await window.Auth.loginWithGoogle();
-      } catch (e) {
-        loading.style.display = 'none';
-        window.Utils.showToast("Falha na conexão com Google", "error");
-      }
+  async function handleRegister(event) {
+    event.preventDefault();
+    if (!window.API || !window.auth) { 
+      window.Utils.showToast("Aguarde o carregamento do banco...", "info"); 
+      return; 
     }
+    
+    loading.style.display = 'flex';
 
-    async function handleForgotPassword() {
-      const email = document.getElementById('email').value;
-      if (!email) { window.Utils.showToast("Digite seu e-mail primeiro", "info"); return; }
+    try {
+      const { createUserWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
       
-      try {
-        const { sendPasswordResetEmail } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
-        await sendPasswordResetEmail(window.auth, email);
-        window.Utils.showToast("Link de recuperação enviado!", "success");
-      } catch (e) {
-        window.Utils.showToast("Erro ao processar pedido", "error");
-      }
+      const email = document.getElementById('registerEmail').value;
+      const pass = document.getElementById('registerPassword').value;
+      const userType = document.getElementById('registerUserType').value;
+
+      const userCredential = await createUserWithEmailAndPassword(window.auth, email, pass);
+      
+      const dados = {
+        name: document.getElementById('registerName').value,
+        email: email,
+        userType: userType,
+        storeName: (userType === 'parceiro') ? document.getElementById('storeName').value : null,
+        online: false,
+        created_at: Date.now()
+      };
+
+      await window.API.saveUserToFirestore(userCredential.user.uid, dados);
+      localStorage.setItem('benaion_user', JSON.stringify({ id: userCredential.user.uid, ...dados }));
+      window.location.href = `${userType}.html`;
+    } catch (e) {
+      loading.style.display = 'none';
+      console.error(e);
+      let msg = "Erro ao cadastrar";
+      if (e.message.includes("email-already")) msg = "Este e-mail já está em uso";
+      window.Utils.showToast(msg, "error");
     }
-  </script>
+  }
+
+  async function handleGoogleLogin() {
+    if (!window.Auth) { window.Utils.showToast("Aguarde o carregamento...", "info"); return; }
+    loading.style.display = 'flex';
+    try {
+      await window.Auth.loginWithGoogle();
+    } catch (e) {
+      loading.style.display = 'none';
+      window.Utils.showToast("Falha na conexão com Google", "error");
+    }
+  }
+
+  async function handleForgotPassword() {
+    const email = document.getElementById('email').value;
+    if (!email) { window.Utils.showToast("Digite seu e-mail primeiro", "info"); return; }
+    
+    try {
+      const { sendPasswordResetEmail } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
+      await sendPasswordResetEmail(window.auth, email);
+      window.Utils.showToast("Link de recuperação enviado!", "success");
+    } catch (e) {
+      window.Utils.showToast("Erro ao processar pedido", "error");
+    }
+  }
+
+  // Expor funções globalmente
+  window.toggleParceiroFields = toggleParceiroFields;
+  window.handleOpenRegister = handleOpenRegister;
+  window.handleCloseRegister = handleCloseRegister;
+  window.handleEmailLogin = handleEmailLogin;
+  window.handleRegister = handleRegister;
+  window.handleGoogleLogin = handleGoogleLogin;
+  window.handleForgotPassword = handleForgotPassword;
+</script>
 </body>
 </html>
 
