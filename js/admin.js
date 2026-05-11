@@ -144,4 +144,38 @@ function renderizarPedidosAdmin() {
         <div>
           <i class="fas fa-arrow-down" style="color: #e30613; width: 15px;"></i> ${p.bairro || 'N/A'}
         </div>
-        ${p.entregadorNome ? `<div style="margin-top:5px;"><i class="fas
+        ${p.entregadorNome ? `<div style="margin-top:5px;"><i class="fas fa-motorcycle"></i> ${p.entregadorNome}</div>` : ''}
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f0f0f0; padding-top: 12px;">
+        <div>
+          <small style="display:block; font-size: 10px; color: #999;">TAXA ENTREGA</small>
+          <span style="font-weight: 800; color: #27ae60; font-size: 16px;">${window.Utils.formatCurrency(p.taxaEntrega)}</span>
+        </div>
+        <button class="btn btn-small btn-primary" onclick="window.Utils.showToast('ID: ${p.id}', 'info')">
+          DETALHES
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function getStatusColorAdmin(status) {
+  const cores = {
+    'pendente': '#f1c40f',
+    'preparando': '#3498db',
+    'pronto': '#9b59b6',
+    'aguardando_entregador': '#95a5a6',
+    'aceito': '#3498db',
+    'em_entrega': '#e67e22',
+    'finalizado': '#2ecc71',
+    'cancelado': '#e30613'
+  };
+  return cores[status] || '#ccc';
+}
+
+// Expor funções globalmente
+window.filtrarPedidos = filtrarPedidos;
+window.salvarNovasTaxas = salvarNovasTaxas;
+
+document.addEventListener('DOMContentLoaded', initAdmin);
