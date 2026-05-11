@@ -1,12 +1,12 @@
 /* ========================================
    BENAION DELIVERY - SISTEMA COMPLETO
-   Cores: Vermelho #b60d00, Amarelo #fec314
+   Cores: Vermelho #E30613, Amarelo #fec314
    Mobile-First Design
 ======================================== */
 
 :root {
-  --primary-red: #b60d00 ;
-  --primary-yellow: #Fec314;
+  --primary-red: #E30613;
+  --primary-yellow: #fec314;
   --white: #FFFFFF;
   --dark: #1a1a1a;
   --gray: #666666;
@@ -17,11 +17,11 @@
   --shadow: rgba(0, 0, 0, 0.1);
 }
 
- {
+* {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-} tô
+}
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -53,7 +53,7 @@ body {
 ======================================== */
 
 .header {
-  background: linear-gradient(135deg, var(--primary-red) 0%, #c00510 100%);
+  background: linear-gradient(135deg, var(--primary-red) 0%, #a0040d 100%);
   color: var(--white);
   padding: 20px;
   position: sticky;
@@ -75,24 +75,24 @@ body {
   gap: 10px;
 }
 
-/* Procure a classe .logo-icon e substitua por esta */
 .logo-icon {
     width: 50px;
     height: 50px;
     background-color: var(--primary-yellow);
-    border-radius: 50%; /* Faz o círculo */
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden; /* Corta o que sobrar da foto */
-    border: 2px solid var(--white); /* Dá um destaque na logo */
+    overflow: hidden;
+    border: 2px solid var(--white);
 }
 
 .logo-icon img {
     width: 100%;
     height: 100%;
-    object-fit: cover; /* Faz a foto preencher o círculo sem esticar */
+    object-fit: cover;
 }
+
 .logo-text h1 {
   font-size: 20px;
   font-weight: 700;
@@ -146,7 +146,7 @@ body {
 }
 
 /* ========================================
-   BOTĆ•ES
+   BOTÕES
 ======================================== */
 
 .btn {
@@ -166,7 +166,7 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--primary-red) 0%, #c00510 100%);
+  background: linear-gradient(135deg, var(--primary-red) 0%, #a0040d 100%);
   color: var(--white);
 }
 
@@ -182,7 +182,7 @@ body {
 
 .btn-secondary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(254, 195, 20, 0.3);
 }
 
 .btn-success {
@@ -267,9 +267,19 @@ body {
   text-transform: uppercase;
 }
 
-.status-recebido {
-  background-color: #e3f2fd;
-  color: #1976d2;
+.status-pendente {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.status-preparando {
+  background-color: #cce5ff;
+  color: #004085;
+}
+
+.status-pronto {
+  background-color: #e8daef;
+  color: #6c3483;
 }
 
 .status-aguardando_entregador {
@@ -278,13 +288,8 @@ body {
 }
 
 .status-aceito {
-  background-color: #e8f5e9;
-  color: #388e3c;
-}
-
-.status-em_coleta {
-  background-color: #fff9c4;
-  color: #f57f17;
+  background-color: #d4edda;
+  color: #155724;
 }
 
 .status-em_entrega {
@@ -303,7 +308,7 @@ body {
 }
 
 /* ========================================
-   FORMULĆRIOS
+   FORMULÁRIOS
 ======================================== */
 
 .form-group {
@@ -344,7 +349,7 @@ select.form-control {
 }
 
 /* ========================================
-   NAVEGAĆ‡ĆO INFERIOR
+   NAVEGAÇÃO INFERIOR
 ======================================== */
 
 .bottom-nav {
@@ -384,7 +389,7 @@ select.form-control {
 }
 
 /* ========================================
-   ESTATĆ¨STICAS
+   ESTATÍSTICAS
 ======================================== */
 
 .stats-grid {
@@ -395,7 +400,7 @@ select.form-control {
 }
 
 .stat-card {
-  background: linear-gradient(135deg, var(--primary-red) 0%, #c00510 100%);
+  background: linear-gradient(135deg, var(--primary-red) 0%, #a0040d 100%);
   color: var(--white);
   padding: 20px;
   border-radius: 16px;
@@ -403,12 +408,12 @@ select.form-control {
 }
 
 .stat-card.yellow {
-  background: linear-gradient(135deg, var(--primary-yellow) 0%, #e6c200 100%);
+  background: linear-gradient(135deg, var(--primary-yellow) 0%, #d4a800 100%);
   color: var(--dark);
 }
 
 .stat-card.green {
-  background: linear-gradient(135deg, var(--success) 0%, #45a049 100%);
+  background: linear-gradient(135deg, var(--success) 0%, #388e3c 100%);
   color: var(--white);
 }
 
@@ -661,6 +666,10 @@ select.form-control {
   background-color: var(--warning);
 }
 
+.toast.info {
+  background-color: #2196F3;
+}
+
 /* ========================================
    LOGIN PAGE
 ======================================== */
@@ -669,7 +678,7 @@ select.form-control {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(135deg, var(--primary-red) 0%, #c00510 100%);
+  background: linear-gradient(135deg, var(--primary-red) 0%, #a0040d 100%);
   padding: 40px 20px;
 }
 
@@ -749,7 +758,7 @@ select.form-control {
 }
 
 /* ========================================
-   UTILITĆRIOS
+   UTILITÁRIOS
 ======================================== */
 
 .hidden {
@@ -790,3 +799,19 @@ select.form-control {
 .gap-1 { gap: 8px; }
 .gap-2 { gap: 16px; }
 .gap-3 { gap: 24px; }
+
+.w-100 { width: 100%; }
+
+/* ========================================
+   RADAR LOADER (ENTREGADOR)
+======================================== */
+
+.radar-loader {
+  width: 60px;
+  height: 60px;
+  border: 3px solid rgba(227, 6, 19, 0.1);
+  border-top-color: var(--primary-red);
+  border-radius: 50%;
+  animation: spin 1.5s linear infinite;
+  margin: 0 auto;
+     }
