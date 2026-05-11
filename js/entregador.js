@@ -1,169 +1,209 @@
 // ========================================
 // BENAION DELIVERY - PAINEL DO ENTREGADOR (V2.2)
 // ========================================
-import { db } from './api.js';
-import { collection, query, where, onSnapshot, doc, updateDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 let currentUser = null;
 let pedidosEscutados = [];
 
 async function initEntregador() {
-    if (!window.Auth || !window.API || !window.auth) {
-        setTimeout(initEntregador, 300);
-        return;
-    }
+  if (!window.Auth || !window.API || !window.auth) {
+    setTimeout(initEntregador, 300);
+    return;
+  }
 
-    if (!window.Auth.requireAuth(['entregador'])) return;
-    currentUser = window.Auth.getCurrentUser();
+  if (!window.Auth.requireAuth(['entregador'])) return;
+  currentUser = window.Auth.getCurrentUser();
+  
+  document.getElementById('entregadorNome').textContent = "Olá, " + currentUser.name.split(' ')[0];
+  
+  const perfil = await window.API.getUserProfile(currentUser.id);
+  currentUser.online = perfil?.online || false;
+  sincronizarUIStatus(currentUser.online);
 
-    // UI Inicial
-    const displayNome = document.getElementById('entregadorNome');
-    if (displayNome) displayNome.textContent = currentUser.name.split(' ')[0];
-    
-    // Inicia Monitoramento
-    escutarPedidosSistema();
-    sincronizarStatusUI();
+  window.API.escutarTodosPedidos((pedidos) => {
+    pedidosEscutados = pedidos;
+    renderizarListas();
+    atualizarEstatisticas();
+  });
 }
 
-// 1. MONITORAMENTO REAL-TIME
-function escutarPedidosSistema() {
-    // Escuta todos os pedidos para filtrar localmente (mais rápido para o entregador)
-    onSnapshot(collection(db, "pedidos"), (snapshot) => {
-        pedidosEscutados = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        
-        // Radar: Pedidos que precisam de entregador
-        const disponiveis = pedidosEscutados.filter(p => 
-            (p.status === 'aguardando_entregador' || p.status === 'pronto') && !p.entregadorId
-        );
+function sincronizarUIStatus(isOnline) {
+  const indicator = document.getElementById('statusIndicator');
+  const textNav = document.getElementById('navTextStatus');
+  const iconNav = document.getElementById('navIconStatus');
+  const btnHeader = document.getElementById('btnStatusHeader');
 
-        // Minhas Entregas: Pedidos que eu aceitei e não finalizei
-        const meus = pedidosEscutados.filter(p => 
-            p.entregadorId === currentUser.id && 
-            !['finalizado', 'cancelado'].includes(p.status)
-        );
-
-        renderizarDisponiveis(disponiveis);
-        renderizarMinhasEntregas(meus);
-        atualizarEstatisticas();
-    });
+  if (isOnline) {
+    if(indicator) {
+      indicator.style.background = "#d4f8e2";
+      indicator.style.color = "#2ecc71";
+      indicator.innerHTML = '<i class="fas fa-circle" style="font-size: 8px;"></i> NO RADAR';
+    }
+    if(textNav) textNav.textContent = "Online";
+    if(iconNav) iconNav.style.color = "#2ecc71";
+    if(btnHeader) btnHeader.style.color = "#2ecc71";
+  } else {
+    if(indicator) {
+      indicator.style.background = "#eee";
+      indicator.style.color = "#95a5a6";
+      indicator.innerHTML = '<i class="fas fa-circle" style="font-size: 8px;"></i> OFFLINE';
+    }
+    if(textNav) textNav.textContent = "Offline";
+    if(iconNav) iconNav.style.color = "#95a5a6";
+    if(btnHeader) btnHeader.style.color = "#666";
+  }
 }
 
-// 2. RENDERIZAÇÃO DO RADAR (DISPONÍVEIS)
-function renderizarDisponiveis(pedidos) {
-    const container = document.getElementById('listaPedidosDisponiveis');
-    if (!container) return;
-
-    if (!currentUser.online) {
-        container.innerHTML = `
-            <div style="text-align:center; padding:30px; color:#999;">
-                <i class="fas fa-toggle-off fa-3x" style="margin-bottom:10px;"></i>
-                <p>Fique <b>ONLINE</b> para receber novos pedidos no radar.</p>
-            </div>`;
-        return;
-    }
-
-    if (pedidos.length === 0) {
-        container.innerHTML = `
-            <div style="text-align:center; padding:30px; color:#999;">
-                <div class="radar-loader"></div>
-                <p>Buscando pedidos próximos...</p>
-            </div>`;
-        return;
-    }
-
-    container.innerHTML = pedidos.map(p => `
-        <div class="card pedido-card animate__animated animate__fadeInUp" style="border-left: 5px solid #2ecc71; margin-bottom:15px; padding:15px; background:#fff; border-radius:12px; box-shadow:0 4px 10px rgba(0,0,0,0.05);">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-weight:bold; font-size:12px; background:#f0f0f0; padding:4px 8px; border-radius:5px;">${p.lojaNome || 'PEDIDO AVULSO'}</span>
-                <span style="color:#2ecc71; font-weight:800; font-size:18px;">${window.Utils.formatCurrency(p.taxaEntrega)}</span>
-            </div>
-            <div style="margin:15px 0; font-size:14px; color:#555;">
-                <p style="margin:5px 0;"><i class="fas fa-store" style="color:#E30613; width:20px;"></i> <b>De:</b> ${p.bairroRetirada}</p>
-                <p style="margin:5px 0;"><i class="fas fa-map-marker-alt" style="color:#3498db; width:20px;"></i> <b>Para:</b> ${p.bairro}</p>
-            </div>
-            <button class="btn btn-primary w-100" onclick="aceitarCorrida('${p.id}')" style="background:#2ecc71; border:none; padding:12px; font-weight:bold; border-radius:10px;">
-                ACEITAR CORRIDA
-            </button>
-        </div>
-    `).join('');
-}
-
-// 3. RENDERIZAÇÃO DAS MINHAS ENTREGAS
-function renderizarMinhasEntregas(pedidos) {
-    const container = document.getElementById('listaMinhasEntregas');
-    if (!container) return;
-
-    if (pedidos.length === 0) {
-        container.innerHTML = '<p style="text-align:center; color:#999; padding:20px;">Você não tem entregas em curso.</p>';
-        return;
-    }
-
-    container.innerHTML = pedidos.map(p => `
-        <div class="card pedido-card active" style="border-left: 5px solid #3498db; margin-bottom:15px; padding:15px; background:#fff; border-radius:12px;">
-            <div style="display:flex; justify-content:space-between;">
-                <b>ID: #${p.id.substring(0,6).toUpperCase()}</b>
-                <span class="badge" style="background:#3498db; color:#fff; padding:3px 8px; border-radius:5px; font-size:11px;">${p.status.toUpperCase()}</span>
-            </div>
-            
-            <div style="margin:15px 0;">
-                <button class="btn btn-small btn-outline w-100" style="margin-bottom:8px;" onclick="window.Utils.openGoogleMaps('${p.bairro}')">
-                    <i class="fas fa-directions"></i> ABRIR GPS (GOOGLE MAPS)
-                </button>
-                <button class="btn btn-small btn-outline w-100" onclick="window.Utils.openWhatsApp('${p.clienteTel}', 'Olá, sou seu entregador Benaion!')">
-                    <i class="fab fa-whatsapp"></i> FALAR COM CLIENTE
-                </button>
-            </div>
-
-            ${p.status === 'aceito' ? `
-                <button class="btn btn-warning w-100" onclick="atualizarStatusPedido('${p.id}', 'em_entrega')">SAIR PARA ENTREGA</button>
-            ` : `
-                <button class="btn btn-success w-100" onclick="atualizarStatusPedido('${p.id}', 'finalizado')">CONFIRMAR ENTREGA</button>
-            `}
-        </div>
-    `).join('');
-}
-
-// 4. AÇÕES DO ENTREGADOR
-window.aceitarCorrida = async (id) => {
-    try {
-        const pedidoRef = doc(db, "pedidos", id);
-        const snap = await getDoc(pedidoRef);
-        
-        if (snap.data().entregadorId) {
-            window.Utils.showToast("Puxa! Outro entregador foi mais rápido.", "warning");
-            return;
-        }
-
-        await updateDoc(pedidoRef, {
-            entregadorId: currentUser.id,
-            entregadorNome: currentUser.name,
-            status: 'aceito',
-            aceito_em: Date.now()
-        });
-
-        window.Utils.showToast("Corrida aceita! Vá até o local de retirada.", "success");
-        window.Utils.vibrate(100);
-    } catch (e) {
-        window.Utils.showToast("Erro ao aceitar corrida", "error");
-    }
-};
-
-window.atualizarStatusPedido = async (id, novoStatus) => {
-    try {
-        const data = { status: novoStatus };
-        if (novoStatus === 'finalizado') data.finalizado_em = Date.now();
-        
-        await updateDoc(doc(db, "pedidos", id), data);
-        window.Utils.showToast(`Status atualizado: ${window.Utils.getStatusText(novoStatus)}`, "success");
-    } catch (e) {
-        window.Utils.showToast("Erro ao atualizar status", "error");
-    }
-};
-
-// 5. GESTÃO DE STATUS ONLINE/OFFLINE
-window.toggleOnline = async () => {
-    currentUser.online = !currentUser.online;
+async function toggleStatus() {
+  const novoStatus = !currentUser.online;
+  try {
+    await window.API.updateUser(currentUser.id, { online: novoStatus });
+    currentUser.online = novoStatus;
     localStorage.setItem('benaion_user', JSON.stringify(currentUser));
-    
-    await window.API.updateUser(currentUser.id, { online: currentUser.online });
-    sincronizarStatusUI();
+    sincronizarUIStatus(novoStatus);
+    renderizarListas();
+    window.Utils.showToast(novoStatus ? "Você está Online!" : "Você saiu do radar", "info");
+  } catch (e) {
+    window.Utils.showToast("Erro ao mudar status", "error");
+  }
+}
+
+function renderizarListas() {
+  const dispContainer = document.getElementById('listaPedidosDisponiveis');
+  const minhasContainer = document.getElementById('listaMinhasEntregas');
+
+  if (!dispContainer || !minhasContainer) return;
+
+  const disponiveis = currentUser.online 
+    ? pedidosEscutados.filter(p => p.status === 'aguardando_entregador' && !p.entregadorId)
+    : [];
+
+  const minhas = pedidosEscutados.filter(p => 
+    p.entregadorId === currentUser.id && 
+    ['aceito', 'em_entrega'].includes(p.status)
+  );
+
+  // Radar
+  dispContainer.innerHTML = disponiveis.length === 0 
+    ? `<div style="text-align:center; padding:40px; color:#999;">
+        <i class="fas ${currentUser.online ? 'fa-box-open' : 'fa-toggle-off'} fa-2x" style="margin-bottom:10px;"></i>
+        <p>${currentUser.online ? 'Sem pedidos no momento...' : 'Fique Online para ver o Radar'}</p>
+       </div>`
+    : disponiveis.map(p => `
+      <div class="pedido-card animate__animated animate__fadeInUp">
+        <div style="display:flex; justify-content:space-between; align-items:start;">
+          <div style="font-size: 13px;">
+            <b style="color:#E30613;">DE:</b> ${p.bairroRetirada ? p.bairroRetirada.toUpperCase() : 'N/A'}<br>
+            <b style="color:#333;">PARA:</b> ${p.bairro ? p.bairro.toUpperCase() : 'N/A'}
+            <p style="margin-top:8px; color:#666; font-size:12px;">
+              <i class="fas fa-box"></i> ${p.produto || 'Entrega Diversa'}
+            </p>
+            ${p.retiradaLocal ? `<p style="font-size:11px; color:#888;"><i class="fas fa-store"></i> ${p.retiradaLocal}</p>` : ''}
+          </div>
+          <div style="text-align:right;">
+            <b style="color:#2ecc71; font-size:20px;">${window.Utils.formatCurrency(p.taxaEntrega)}</b>
+          </div>
+        </div>
+        <button class="btn-action btn-aceitar" onclick="aceitarCorrida('${p.id}', this)">ACEITAR ENTREGA</button>
+      </div>
+    `).join('');
+
+  // Minhas Entregas
+  minhasContainer.innerHTML = minhas.length === 0
+    ? '<div style="text-align:center; padding:30px; color:#999;">Sem entregas ativas.</div>'
+    : minhas.map(p => `
+      <div class="card" style="border-left: 6px solid #3498db; margin-bottom:12px; border-radius:15px; background: white; padding: 15px;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+          <b style="font-size:12px; color:#3498db;">#${p.id.substring(0,6).toUpperCase()}</b>
+          <span class="badge" style="background:#3498db; color:white; font-size:10px; padding:2px 8px; border-radius:10px;">${window.Utils.getStatusText(p.status).toUpperCase()}</span>
+        </div>
+        <div style="font-size:13px; margin-bottom:15px; color:#444;">
+          <p><i class="fas fa-store"></i> <b>Retirada:</b> ${p.retiradaLocal || 'Loja'} (${p.bairroRetirada || 'N/A'})</p>
+          <p><i class="fas fa-map-marker-alt"></i> <b>Entrega:</b> ${p.entregaLocal || 'Endereço'} (${p.bairro || 'N/A'})</p>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+          <button class="btn-action" style="background:#f1f1f1; color:#333;" onclick="window.Utils.openGoogleMaps('${p.bairroRetirada}', '${p.bairro}')">ROTA</button>
+          <button class="btn-action" style="background:#2ecc71; color:white;" onclick="finalizarEntrega('${p.id}')">ENTREGUE</button>
+        </div>
+      </div>
+    `).join('');
+}
+
+async function aceitarCorrida(id, btn) {
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "PROCESSANDO...";
+  }
+  
+  try {
+    await window.API.updatePedido(id, {
+      entregadorId: currentUser.id,
+      entregadorNome: currentUser.name,
+      status: 'aceito',
+      aceito_em: Date.now()
+    });
+    window.Utils.showToast("Pedido aceito! Boa entrega.", "success");
+    if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    mostrarAba('minhas');
+  } catch (e) {
+    window.Utils.showToast("Este pedido já foi pego por outro entregador.", "error");
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "ACEITAR ENTREGA";
+    }
+  }
+}
+
+async function finalizarEntrega(id) {
+  if (confirm("Confirmar que você finalizou esta entrega?")) {
+    try {
+      await window.API.updatePedido(id, { 
+        status: 'finalizado',
+        finalizado_em: Date.now()
+      });
+      window.Utils.showToast("Ganhos adicionados!", "success");
+    } catch (e) {
+      window.Utils.showToast("Erro ao finalizar.", "error");
+    }
+  }
+}
+
+function atualizarEstatisticas() {
+  const hojeStr = new Date().toLocaleDateString();
+  
+  const concluidosHoje = pedidosEscutados.filter(p => {
+    if (p.entregadorId !== currentUser.id || p.status !== 'finalizado') return false;
+    const dataFinalizado = p.finalizado_em ? new Date(p.finalizado_em).toLocaleDateString() : '';
+    return dataFinalizado === hojeStr;
+  });
+
+  const ganhos = concluidosHoje.reduce((acc, p) => acc + (parseFloat(p.taxaEntrega) || 0), 0);
+  
+  const statHoje = document.getElementById('statHoje');
+  const statSaldo = document.getElementById('statSaldo');
+  if (statHoje) statHoje.textContent = concluidosHoje.length;
+  if (statSaldo) statSaldo.textContent = window.Utils.formatCurrency(ganhos);
+}
+
+function mostrarAba(aba) {
+  const disp = document.getElementById('abaDisponiveis');
+  const minhas = document.getElementById('abaMinhas');
+  const btnDisp = document.getElementById('btnTabDisp');
+  const btnMinhas = document.getElementById('btnTabMinhas');
+
+  if (disp) disp.classList.toggle('hidden', aba !== 'disponiveis');
+  if (minhas) minhas.classList.toggle('hidden', aba !== 'minhas');
+  if (btnDisp) btnDisp.className = aba === 'disponiveis' ? 'btn btn-primary' : 'btn btn-outline';
+  if (btnMinhas) btnMinhas.className = aba === 'minhas' ? 'btn btn-primary' : 'btn btn-outline';
+  
+  const navItems = document.querySelectorAll('.bottom-nav .nav-item');
+  if (navItems[0]) navItems[0].classList.toggle('active', aba === 'disponiveis');
+}
+
+// Expor funções globalmente
+window.toggleStatus = toggleStatus;
+window.aceitarCorrida = aceitarCorrida;
+window.finalizarEntrega = finalizarEntrega;
+window.mostrarAba = mostrarAba;
+
+document.addEventListener('DOMContentLoaded', initEntregador);
