@@ -18,15 +18,12 @@
     .product-card { background: white; border-radius: 12px; padding: 12px; border: 1px solid #eee; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
     
     .pedido-card { border-left: 5px solid #ccc; margin-bottom: 15px; padding: 15px; background: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-    .pedido-card.aceito { border-left-color: #f1c40f; } /* Amarelo: Alguém pegou */
+    .pedido-card.aceito { border-left-color: #f1c40f; }
     .pedido-card.finalizado { border-left-color: #2ecc71; opacity: 0.8; }
     
     .tab-section { animation: fadeIn 0.3s ease; }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-    /* Estilo do Modal de Chamada */
-    .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
-    .modal-content { background: white; padding: 20px; border-radius: 20px; width: 100%; max-width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
     .taxa-preview { background: #f8f9fa; padding: 15px; border-radius: 12px; margin: 15px 0; text-align: center; border: 2px dashed #E30613; }
   </style>
 </head>
@@ -51,6 +48,7 @@
     </header>
 
     <main class="page">
+      <!-- ABA PEDIDOS -->
       <section id="aba-pedidos" class="tab-section">
         <div class="stats-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;">
           <div class="card" style="text-align: center; padding: 10px;">
@@ -67,14 +65,16 @@
           </div>
         </div>
 
-        <button class="btn btn-primary animate__animated animate__pulse animate__infinite" onclick="abrirModalChamar()" style="width: 100%; margin-bottom: 20px; background: #27ae60; border: none; height: 55px; font-weight: 800; border-radius: 15px;">
+        <button class="btn btn-primary animate__animated animate__pulse animate__infinite" 
+                onclick="window.abrirModalChamar()" 
+                style="width: 100%; margin-bottom: 20px; background: #27ae60; border: none; height: 55px; font-weight: 800; border-radius: 15px;">
           <i class="fas fa-motorcycle"></i> CHAMAR ENTREGADOR AGORA
         </button>
 
-        <div id="listaPedidos">
-           </div>
+        <div id="listaPedidos"></div>
       </section>
 
+      <!-- ABA PRODUTOS -->
       <section id="aba-produtos" class="tab-section hidden">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
           <h3 style="margin:0;">Meu Catálogo</h3>
@@ -85,6 +85,7 @@
         <div class="product-grid" id="gridProdutos"></div>
       </section>
 
+      <!-- ABA PERFIL -->
       <section id="aba-perfil" class="tab-section hidden">
         <div class="card">
           <h3>Configurações da Loja</h3>
@@ -99,32 +100,33 @@
     </main>
 
     <nav class="bottom-nav">
-      <button class="nav-item active" id="nav-pedidos" onclick="switchTab('pedidos')">
+      <button class="nav-item active" id="nav-pedidos" onclick="window.switchTab('pedidos')">
         <i class="fas fa-receipt"></i><span>Pedidos</span>
       </button>
-      <button class="nav-item" id="nav-produtos" onclick="switchTab('produtos')">
+      <button class="nav-item" id="nav-produtos" onclick="window.switchTab('produtos')">
         <i class="fas fa-store-alt"></i><span>Produtos</span>
       </button>
-      <button class="nav-item" id="nav-perfil" onclick="switchTab('perfil')">
+      <button class="nav-item" id="nav-perfil" onclick="window.switchTab('perfil')">
         <i class="fas fa-cog"></i><span>Ajustes</span>
       </button>
     </nav>
   </div>
 
+  <!-- Modal Chamar Motoboy -->
   <div class="modal hidden" id="modalChamar">
     <div class="modal-content">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
         <h3 style="margin:0;">Solicitar Motoboy</h3>
-        <button onclick="fecharModalChamar()" style="border:none; background:none; font-size:24px;">&times;</button>
+        <button onclick="window.fecharModalChamar()" style="border:none; background:none; font-size:24px;">&times;</button>
       </div>
       <form id="formChamarAvulso">
         <div class="form-group">
           <label>Onde retirar? (Origem)</label>
-          <select id="bairroOrigem" class="form-control" onchange="calcularTaxaChamada()" required></select>
+          <select id="bairroOrigem" class="form-control" onchange="window.calcularTaxaChamada()" required></select>
         </div>
         <div class="form-group">
           <label>Onde entregar? (Destino)</label>
-          <select id="bairroDestino" class="form-control" onchange="calcularTaxaChamada()" required></select>
+          <select id="bairroDestino" class="form-control" onchange="window.calcularTaxaChamada()" required></select>
         </div>
         <div class="form-group">
           <label>Valor dos Produtos (Opcional)</label>
@@ -139,140 +141,21 @@
     </div>
   </div>
 
+  <!-- Modal Produto -->
   <div class="modal hidden" id="modalProduto">
     <div class="modal-content">
-        <h3>Adicionar ao Cardápio</h3>
-        <form id="formAddProduto">
-            <input type="text" id="pNome" class="form-control" placeholder="Nome do Produto (Ex: Pizza Calabresa)" required style="margin-bottom:10px;">
-            <input type="number" step="0.01" id="pPreco" class="form-control" placeholder="Preço de Venda R$" required style="margin-bottom:10px;">
-            <button type="submit" class="btn btn-primary" style="width:100%;">Cadastrar Produto</button>
-            <button type="button" class="btn btn-outline" style="width:100%; margin-top:10px;" onclick="document.getElementById('modalProduto').classList.add('hidden')">Voltar</button>
-        </form>
+      <h3>Adicionar ao Cardápio</h3>
+      <form id="formAddProduto">
+        <input type="text" id="pNome" class="form-control" placeholder="Nome do Produto (Ex: Pizza Calabresa)" required style="margin-bottom:10px;">
+        <input type="number" step="0.01" id="pPreco" class="form-control" placeholder="Preço de Venda R$" required style="margin-bottom:10px;">
+        <button type="submit" class="btn btn-primary" style="width:100%;">Cadastrar Produto</button>
+        <button type="button" class="btn btn-outline" style="width:100%; margin-top:10px;" onclick="document.getElementById('modalProduto').classList.add('hidden')">Voltar</button>
+      </form>
     </div>
   </div>
 
+  <!-- Scripts -->
   <script src="js/utils.js"></script>
-  <script type="module">
-    import { API, Auth } from './js/api.js';
-
-    let currentUser = null;
-    let pedidosLoja = [];
-    let taxaCalculada = 6;
-
-    async function init() {
-      if (!window.Auth || !window.API) {
-        setTimeout(init, 300);
-        return;
-      }
-
-      if (!window.Auth.requireAuth(['parceiro'])) return;
-      currentUser = window.Auth.getCurrentUser();
-      document.getElementById('lojaNome').textContent = currentUser.storeName || currentUser.name;
-
-      // Lista de bairros oficial
-      const bairros = ["Agreste", "Nova esperança", "Prosperidade", "Castanheira", "Cajari", "Rodovia do gogó", "buritizal", "Sarney", "Nazaré mineiro", "centro", "mirilandia", "Rio branco", "José cesário", "Malvinas", "samaúma", "monte dourado"];
-      const comboOrigem = document.getElementById('bairroOrigem');
-      const comboDestino = document.getElementById('bairroDestino');
-      
-      bairros.forEach(b => {
-        comboOrigem.innerHTML += `<option value="${b}">${b}</option>`;
-        comboDestino.innerHTML += `<option value="${b}">${b}</option>`;
-      });
-
-      // Escuta pedidos em tempo real filtrando por esta loja
-      window.API.escutarTodosPedidos((pedidos) => {
-        pedidosLoja = pedidos.filter(p => p.lojaId === currentUser.id || p.parceiroId === currentUser.id);
-        renderizar();
-        atualizarDashboard();
-      });
-      
-      calcularTaxaChamada(); // Cálculo inicial
-    }
-
-    window.calcularTaxaChamada = () => {
-      const ori = document.getElementById('bairroOrigem').value;
-      const des = document.getElementById('bairroDestino').value;
-      taxaCalculada = window.API.calcularTaxa(ori, des);
-      document.getElementById('valorTaxaChamada').textContent = window.Utils.formatCurrency(taxaCalculada);
-    };
-
-    window.abrirModalChamar = () => document.getElementById('modalChamar').classList.remove('hidden');
-    window.fecharModalChamar = () => document.getElementById('modalChamar').classList.add('hidden');
-
-    document.getElementById('formChamarAvulso').onsubmit = async (e) => {
-      e.preventDefault();
-      const btn = document.getElementById('btnLancarPedido');
-      btn.disabled = true;
-      btn.textContent = "LANÇANDO...";
-
-      const pedido = {
-        lojaId: currentUser.id,
-        lojaNome: currentUser.storeName || currentUser.name,
-        bairroRetirada: document.getElementById('bairroOrigem').value,
-        bairro: document.getElementById('bairroDestino').value,
-        taxaEntrega: taxaCalculada,
-        valorProdutos: parseFloat(document.getElementById('valorProdutosAvulso').value) || 0,
-        status: 'aguardando_entregador',
-        origem: 'PARCEIRO_AVULSO',
-        produto: 'Entrega Avulsa',
-        created_at: Date.now()
-      };
-
-      try {
-        await window.API.createPedido(pedido);
-        window.Utils.showToast("Pedido lançado no Radar!", "success");
-        fecharModalChamar();
-        e.target.reset();
-      } catch (err) {
-        window.Utils.showToast("Erro ao chamar motoboy", "error");
-      } finally {
-        btn.disabled = false;
-        btn.textContent = "LANÇAR NO RADAR";
-      }
-    };
-
-    function renderizar() {
-      const lista = document.getElementById('listaPedidos');
-      lista.innerHTML = pedidosLoja.length === 0 ? 
-        '<div style="text-align:center; padding:50px; opacity:0.5;"><i class="fas fa-box-open fa-3x"></i><p>Nenhum pedido hoje.</p></div>' : 
-        pedidosLoja.sort((a,b) => b.created_at - a.created_at).map(p => `
-          <div class="pedido-card ${p.status} animate__animated animate__fadeIn">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <b style="color:#E30613;">#${p.id.substring(0,6).toUpperCase()}</b>
-                <span class="badge-status" style="background:#f0f0f0; color:#333; font-size:9px;">
-                  ${window.Utils.getStatusText(p.status).toUpperCase()}
-                </span>
-            </div>
-            <div style="margin:10px 0; font-size:13px;">
-              <p>📍 <b>Para:</b> ${p.bairro}</p>
-              <p>🛵 <b>Entregador:</b> ${p.entregadorNome || 'Buscando...'}</p>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-weight:bold; color:#27ae60;">${window.Utils.formatCurrency(p.taxaEntrega)}</span>
-                <div style="display:flex; gap:5px;">
-                  ${p.status === 'aguardando_entregador' ? 
-                    `<button class="btn btn-small" style="background:#ff4757; color:white; border:none; padding:5px 10px;" onclick="cancelarPedido('${p.id}')">Cancelar</button>` : 
-                    `<button class="btn btn-small btn-outline" onclick="window.Utils.showToast('Entregador: ${p.entregadorNome || 'N/A'}', 'info')">Info</button>`
-                  }
-                </div>
-            </div>
-          </div>
-        `).join('');
-    }
-
-    window.cancelarPedido = async (id) => {
-      if(confirm("Deseja remover este pedido do radar?")) {
-        await window.API.deletePedido(id);
-        window.Utils.showToast("Pedido cancelado.");
-      }
-    }
-
-    function atualizarDashboard() {
-      const hoje = new Date().toLocaleDateString();
-      const concluidos = pedidosLoja.filter(p => p.status === 'finalizado');
-      const ativos = pedidosLoja.filter(p => p.status !== 'finalizado');
-      const faturamento = concluidos.reduce((acc, p) => acc + (p.valorProdutos || 0), 0);
-
-      document.getElementById('pedidosAtivos').textContent = ativos.length;
-      document.getElementById('vendasHoje').textContent = concluidos.length;
-      document.getElementById('faturamentoHoje').textContent = window.Utils.formatCurrency(faturamento);
+  <script type="module" src="js/parceiro.js"></script>
+</body>
+</html>
