@@ -1,5 +1,5 @@
 // ========================================
-// BENAION DELIVERY - PAINEL ADMIN (V2.2)
+// BENAION DELIVERY - PAINEL ADMIN (V2.3)
 // ========================================
 
 let todosPedidos = [];
@@ -173,6 +173,37 @@ function getStatusColorAdmin(status) {
   };
   return cores[status] || '#ccc';
 }
+
+// ==========================================
+// LANÇAR PEDIDO MANUAL (ADMIN)
+// ==========================================
+window.lancarPedidoManual = async function(e) {
+  e.preventDefault();
+  const btn = e.target.querySelector('button');
+  btn.disabled = true;
+
+  const data = {
+    clienteNome: document.getElementById('manualCliente').value,
+    produto: document.getElementById('manualProduto').value,
+    bairroRetirada: document.getElementById('manualBairroRet').value,
+    bairro: document.getElementById('manualBairroEnt').value,
+    taxaEntrega: parseFloat(document.getElementById('manualTaxa').value),
+    status: 'aguardando_entregador',
+    created_at: Date.now(),
+    origem: 'ADMIN'
+  };
+
+  try {
+    await window.API.createPedido(data);
+    window.Utils.showToast("✅ Pedido lançado no Radar!", "success");
+    window.Utils.hideModal('novoPedidoModal');
+    e.target.reset();
+  } catch (err) {
+    window.Utils.showToast("❌ Erro ao lançar pedido.", "error");
+  } finally {
+    btn.disabled = false;
+  }
+};
 
 // Expor funções globalmente
 window.filtrarPedidos = filtrarPedidos;
