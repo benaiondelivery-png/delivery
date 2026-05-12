@@ -58,7 +58,6 @@
 </head>
 <body>
 
-  <!-- LOADING -->
   <div id="loadingOverlay" class="loading-overlay">
     <div class="logo-icon animate__animated animate__pulse animate__infinite">
         <img src="https://i.postimg.cc/T2Vt53JP/Vermelho-delivery-logo-20260227-011329-0005.png" style="width: 80px; border-radius: 50%;">
@@ -66,7 +65,6 @@
     <p style="margin-top: 15px; font-weight: 600;">Conectando à Benaion...</p>
   </div>
 
-  <!-- LOGIN -->
   <div class="login-container animate__animated animate__fadeInUp">
     <div class="login-logo" style="text-align: center; margin-bottom: 25px;">
       <img src="https://i.postimg.cc/T2Vt53JP/Vermelho-delivery-logo-20260227-011329-0005.png" alt="Benaion" style="width: 120px; height: 120px; border-radius: 50%; border: 4px solid white;">
@@ -104,11 +102,10 @@
 
     <div style="text-align: center; margin-top: 30px; color: white;">
       <p style="font-size: 12px; font-weight: 600;">LARANJAL DO JARI • MONTE DOURADO</p>
-      <p style="font-size: 11px; opacity: 0.6;">BENAION DELIVERY 2026 • v2.2</p>
+      <p style="font-size: 11px; opacity: 0.6;">BENAION DELIVERY 2026 • v3.5</p>
     </div>
   </div>
 
-  <!-- MODAL DE CADASTRO -->
   <div class="modal" id="registerModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center;">
     <div class="login-card animate__animated animate__zoomIn" style="width: 90%; max-width: 400px; position: relative;">
       <button onclick="handleCloseRegister()" style="position: absolute; right: 15px; top: 15px; border: none; background: none; font-size: 20px; cursor: pointer;">&times;</button>
@@ -138,36 +135,25 @@
     </div>
   </div>
 
-  <!-- SCRIPTS -->
   <script src="js/utils.js"></script>
   <script type="module" src="js/api.js"></script>
 
   <script>
-    // ==========================================
-    // ELEMENTOS
-    // ==========================================
     const loading = document.getElementById('loadingOverlay');
 
-    // ==========================================
-    // AUTO-LOGIN AO CARREGAR A PÁGINA
-    // ==========================================
     window.addEventListener('load', async () => {
-      // Aguarda o Firebase carregar completamente
       await new Promise(resolve => setTimeout(resolve, 800));
 
-      // 1. Verifica se está retornando do login do Google
       if (window.Auth && typeof window.Auth.handleRedirect === 'function') {
         const foiRedirecionado = await window.Auth.handleRedirect();
-        if (foiRedirecionado) return; // Se foi redirecionado, para aqui
+        if (foiRedirecionado) return;
       }
 
-      // 2. Verifica se já existe sessão salva no localStorage
       const savedUser = localStorage.getItem('benaion_user');
       if (savedUser) {
         try {
           const user = JSON.parse(savedUser);
           if (user && user.userType && user.id) {
-            // Verifica se o perfil ainda é válido
             const profile = await window.API.getUserProfile(user.id);
             if (profile && profile.userType) {
               window.location.href = `${profile.userType}.html`;
@@ -180,214 +166,105 @@
       }
     });
 
-    // ==========================================
-    // FUNÇÕES AUXILIARES
-    // ==========================================
     function toggleParceiroFields() {
       const type = document.getElementById('registerUserType').value;
       document.getElementById('parceiroExtraFields').style.display = (type === 'parceiro') ? 'block' : 'none';
     }
 
-    function handleOpenRegister() { 
-      document.getElementById('registerModal').style.display = 'flex'; 
-    }
-    
-    function handleCloseRegister() { 
-      document.getElementById('registerModal').style.display = 'none'; 
-    }
+    function handleOpenRegister() { document.getElementById('registerModal').style.display = 'flex'; }
+    function handleCloseRegister() { document.getElementById('registerModal').style.display = 'none'; }
 
-    // ==========================================
-    // LOGIN COM EMAIL/SENHA - CORRIGIDO
-    // ==========================================
     async function handleEmailLogin(event) {
       event.preventDefault();
-      
-      // Verifica se o Firebase já carregou
-      if (!window.auth) { 
-        window.Utils.showToast("Sistema carregando... Aguarde 2 segundos", "warning"); 
-        return; 
-      }
+      if (!window.auth) { window.Utils.showToast("Sistema carregando...", "warning"); return; }
 
       loading.style.display = 'flex';
       const email = document.getElementById('email').value.trim();
       const pass = document.getElementById('password').value;
 
       try {
-        // Importa a função de login
-        const { signInWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
-        
-        // Tenta fazer login
-        const userCredential = await signInWithEmailAndPassword(window.auth, email, pass);
-        
-        // Busca o perfil no Firestore
+        const userCredential = await window.Auth.loginWithEmail(email, pass);
         const profile = await window.API.getUserProfile(userCredential.user.uid);
         
         if (profile && profile.userType) {
-          // Salva no localStorage e redireciona
-          localStorage.setItem('benaion_user', JSON.stringify({ 
-            id: userCredential.user.uid, 
-            ...profile 
-          }));
+          localStorage.setItem('benaion_user', JSON.stringify({ id: userCredential.user.uid, ...profile }));
           window.location.href = `${profile.userType}.html`;
         } else {
-          // Usuário existe no Auth mas não tem perfil no Firestore
-          // Cria um perfil básico automaticamente
           const novoPerfil = {
-            name: email.split('@')[0],
-            email: email,
-            userType: 'cliente',
-            online: false,
-            created_at: Date.now()
+            name: email.split('@')[0], email: email, userType: 'cliente', online: false, created_at: Date.now()
           };
           await window.API.saveUserToFirestore(userCredential.user.uid, novoPerfil);
-          localStorage.setItem('benaion_user', JSON.stringify({ 
-            id: userCredential.user.uid, 
-            ...novoPerfil 
-          }));
+          localStorage.setItem('benaion_user', JSON.stringify({ id: userCredential.user.uid, ...novoPerfil }));
           window.location.href = 'cliente.html';
         }
       } catch (e) {
         loading.style.display = 'none';
-        console.error("Erro no login:", e.code, e.message);
-        
-        // Mensagens específicas
-        if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found') {
+        if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password') {
           window.Utils.showToast("E-mail ou senha incorretos", "error");
-        } else if (e.code === 'auth/invalid-email') {
-          window.Utils.showToast("Formato de e-mail inválido", "error");
         } else if (e.code === 'auth/too-many-requests') {
-          window.Utils.showToast("Muitas tentativas. Aguarde um momento", "error");
-        } else if (e.code === 'auth/network-request-failed') {
-          window.Utils.showToast("Sem conexão com a internet", "error");
+          window.Utils.showToast("Muitas tentativas. Aguarde.", "error");
         } else {
-          window.Utils.showToast("Erro ao fazer login: " + e.message, "error");
+          window.Utils.showToast("Erro ao fazer login", "error");
         }
       }
     }
 
-    // ==========================================
-    // CADASTRO - CORRIGIDO
-    // ==========================================
     async function handleRegister(event) {
       event.preventDefault();
-      
-      if (!window.API || !window.auth) { 
-        window.Utils.showToast("Aguarde o carregamento do sistema...", "warning"); 
-        return; 
-      }
+      if (!window.API || !window.auth) { window.Utils.showToast("Aguarde...", "warning"); return; }
       
       loading.style.display = 'flex';
-
       try {
-        const { createUserWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
-        
         const email = document.getElementById('registerEmail').value.trim();
         const pass = document.getElementById('registerPassword').value;
         const userType = document.getElementById('registerUserType').value;
         const name = document.getElementById('registerName').value.trim();
 
-        // Validações
-        if (!name) {
-          throw new Error("Nome é obrigatório");
-        }
-        if (pass.length < 6) {
-          throw new Error("Senha deve ter no mínimo 6 caracteres");
-        }
+        if (!name) throw new Error("Nome é obrigatório");
+        if (pass.length < 6) throw new Error("Senha deve ter no mínimo 6 caracteres");
 
-        // Cria usuário no Firebase Auth
-        const userCredential = await createUserWithEmailAndPassword(window.auth, email, pass);
+        const userCredential = await window.Auth.register(email, pass);
         
-        // Prepara dados para o Firestore
         const dados = {
-          name: name,
-          email: email,
-          userType: userType,
+          name, email, userType,
           storeName: (userType === 'parceiro') ? (document.getElementById('storeName').value || name) : null,
-          online: false,
-          telefone: "",
-          created_at: Date.now()
+          online: false, telefone: "", created_at: Date.now()
         };
 
-        // Salva no Firestore
         await window.API.saveUserToFirestore(userCredential.user.uid, dados);
-        
-        // Salva no localStorage
-        localStorage.setItem('benaion_user', JSON.stringify({ 
-          id: userCredential.user.uid, 
-          ...dados 
-        }));
-        
+        localStorage.setItem('benaion_user', JSON.stringify({ id: userCredential.user.uid, ...dados }));
         window.Utils.showToast("Conta criada com sucesso!", "success");
         
-        // Redireciona após 1 segundo
-        setTimeout(() => {
-          window.location.href = `${userType}.html`;
-        }, 1000);
-        
+        setTimeout(() => { window.location.href = `${userType}.html`; }, 1000);
       } catch (e) {
         loading.style.display = 'none';
-        console.error("Erro no cadastro:", e.code, e.message);
-        
         let msg = "Erro ao cadastrar";
-        if (e.code === 'auth/email-already-in-use') {
-          msg = "Este e-mail já está cadastrado. Faça login!";
-        } else if (e.code === 'auth/weak-password') {
-          msg = "Senha muito fraca. Use pelo menos 6 caracteres";
-        } else if (e.code === 'auth/invalid-email') {
-          msg = "Formato de e-mail inválido";
-        } else if (e.message) {
-          msg = e.message;
-        }
+        if (e.code === 'auth/email-already-in-use') msg = "Este e-mail já está cadastrado";
+        else if (e.code === 'auth/weak-password') msg = "Senha muito fraca";
         window.Utils.showToast(msg, "error");
       }
     }
 
-    // ==========================================
-    // LOGIN COM GOOGLE
-    // ==========================================
     async function handleGoogleLogin() {
-      if (!window.Auth) { 
-        window.Utils.showToast("Aguarde o carregamento...", "warning"); 
-        return; 
-      }
+      if (!window.Auth) { window.Utils.showToast("Aguarde...", "warning"); return; }
       loading.style.display = 'flex';
-      try {
-        await window.Auth.loginWithGoogle();
-        // Não tira o loading aqui - o redirect vai acontecer
-      } catch (e) {
+      try { await window.Auth.loginWithGoogle(); } catch (e) {
         loading.style.display = 'none';
-        console.error("Erro Google:", e);
         window.Utils.showToast("Falha na conexão com Google", "error");
       }
     }
 
-    // ==========================================
-    // RECUPERAR SENHA
-    // ==========================================
     async function handleForgotPassword() {
       const email = document.getElementById('email').value.trim();
-      if (!email) { 
-        window.Utils.showToast("Digite seu e-mail no campo acima", "warning"); 
-        return; 
-      }
-      
+      if (!email) { window.Utils.showToast("Digite seu e-mail primeiro", "warning"); return; }
       try {
-        const { sendPasswordResetEmail } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
-        await sendPasswordResetEmail(window.auth, email);
-        window.Utils.showToast("Link de recuperação enviado para seu e-mail!", "success");
+        await window.Auth.resetPassword(email);
+        window.Utils.showToast("Link de recuperação enviado!", "success");
       } catch (e) {
-        console.error("Erro recuperação:", e);
-        if (e.code === 'auth/user-not-found') {
-          window.Utils.showToast("Nenhuma conta com este e-mail", "error");
-        } else {
-          window.Utils.showToast("Erro ao enviar link de recuperação", "error");
-        }
+        window.Utils.showToast("Erro ao enviar link", "error");
       }
     }
 
-    // ==========================================
-    // EXPOR FUNÇÕES GLOBALMENTE
-    // ==========================================
     window.toggleParceiroFields = toggleParceiroFields;
     window.handleOpenRegister = handleOpenRegister;
     window.handleCloseRegister = handleCloseRegister;
