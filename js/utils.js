@@ -1,9 +1,47 @@
 // ========================================
-// BENAION DELIVERY - UTILITÁRIOS (V2.2)
+// BENAION DELIVERY - UTILS PREMIUM (V3.5)
 // ========================================
 
 const Utils = {
-  // 1. NOTIFICAÇÕES (Toasts elegantes)
+  // Sons do sistema
+  sons: {
+    pedidoNovo: null,
+    pedidoAceito: null,
+    entregaFinalizada: null,
+    
+    inicializar() {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        this.ctx = new AudioContext();
+      } catch(e) {}
+    },
+    
+    tocar(tipo) {
+      if (!this.ctx) return;
+      try {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        
+        const sons = {
+          pedidoNovo: { freq: 880, duracao: 0.2 },
+          pedidoAceito: { freq: 660, duracao: 0.3 },
+          sucesso: { freq: 1000, duracao: 0.15 },
+          erro: { freq: 200, duracao: 0.4 }
+        };
+        
+        const config = sons[tipo] || sons.sucesso;
+        osc.frequency.value = config.freq;
+        gain.gain.value = 0.1;
+        osc.start();
+        osc.stop(this.ctx.currentTime + config.duracao);
+      } catch(e) {}
+    }
+  },
+
+  // Toast melhorado com som
   showToast(message, type = 'info', duration = 3000) {
     let container = document.querySelector('.toast-container');
     if (!container) {
@@ -13,145 +51,84 @@ const Utils = {
     }
 
     const toast = document.createElement('div');
-    toast.className = `toast toast-${type} animate__animated animate__fadeInRight`;
+    toast.className = `toast toast-${type}`;
     
-    const icons = {
-      success: 'fa-check-circle',
-      error: 'fa-times-circle',
-      warning: 'fa-exclamation-triangle',
-      info: 'fa-info-circle'
-    };
-    
-    toast.innerHTML = `
-      <i class="fas ${icons[type] || icons.info}"></i>
-      <span>${message}</span>
-    `;
-
+    const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+    toast.innerHTML = `<span>${icons[type] || '📢'}</span><span>${message}</span>`;
     container.appendChild(toast);
 
-    if(type === 'error') this.vibrate([100, 50, 100]);
-    if(type === 'success') this.vibrate(50);
+    if (type === 'success') { this.sons.tocar('sucesso'); this.vibrate(30); }
+    if (type === 'error') { this.sons.tocar('erro'); this.vibrate([100, 50, 100]); }
 
     setTimeout(() => {
-      toast.classList.replace('animate__fadeInRight', 'animate__fadeOutRight');
-      setTimeout(() => {
-        if (toast.parentNode) {
-          toast.remove();
-          if (container.children.length === 0) container.remove();
-        }
-      }, 500);
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(-10px)';
+      toast.style.transition = 'all 0.3s';
+      setTimeout(() => toast.remove(), 300);
     }, duration);
   },
 
-  // 2. MODAIS
   showModal(modalId) {
     const modal = document.getElementById(modalId);
-    if (modal) {
-      modal.classList.add('active');
-      modal.style.display = 'flex';
-      document.body.style.overflow = 'hidden';
-    }
+    if (modal) { modal.classList.add('active'); modal.style.display = 'flex'; }
   },
 
   hideModal(modalId) {
     const modal = document.getElementById(modalId);
-    if (modal) {
-      modal.classList.remove('active');
-      modal.style.display = 'none';
-      document.body.style.overflow = '';
-    }
+    if (modal) { modal.classList.remove('active'); modal.style.display = 'none'; }
   },
 
-  // 3. GOOGLE MAPS
   openGoogleMaps(origem, destino) {
-    let url;
-    if (destino) {
-      // Rota de origem até destino
-      const de = encodeURIComponent(`${origem}, Laranjal do Jari, AP`);
-      const para = encodeURIComponent(`${destino}, Laranjal do Jari, AP`);
-      url = `https://www.google.com/maps/dir/?api=1&origin=${de}&destination=${para}&travelmode=motorcycle`;
-    } else {
-      // Apenas destino
-      const endereco = encodeURIComponent(`${origem}, Laranjal do Jari, AP`);
-      url = `https://www.google.com/maps/dir/?api=1&destination=${endereco}&travelmode=motorcycle`;
-    }
-    window.open(url, '_blank');
+    const de = encodeURIComponent(`${origem}, Laranjal do Jari, AP`);
+    const para = encodeURIComponent(`${destino}, Laranjal do Jari, AP`);
+    window.open(`https://www.google.com/maps/dir/?api=1&origin=${de}&destination=${para}&travelmode=motorcycle`, '_blank');
   },
 
-  // 4. WHATSAPP
   openWhatsApp(telefone, mensagem) {
-    if (!telefone) {
-      this.showToast("Número de telefone não disponível", "warning");
-      return;
-    }
-    const numero = telefone.replace(/\D/g, '');
-    const url = `https://wa.me/55${numero}?text=${encodeURIComponent(mensagem)}`;
-    window.open(url, '_blank');
+    if (!telefone) { this.showToast("Telefone não disponível", "warning"); return; }
+    window.open(`https://wa.me/55${telefone.replace(/\D/g,'')}?text=${encodeURIComponent(mensagem)}`, '_blank');
   },
 
-  // 5. FORMATAÇÃO
-  formatCurrency(value) {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value || 0);
+  formatCurrency(v) {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
   },
 
-  formatDate(timestamp) {
-    if (!timestamp) return '---';
-    const data = new Date(timestamp);
-    return data.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  formatDate(ts) {
+    if (!ts) return '---';
+    const d = new Date(ts);
+    return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
   },
 
-  // 6. CÁLCULO DE ADICIONAL POR TEMPO DE ESPERA
-  calcularAdicionalTempo(timestampInicio) {
-    if (!timestampInicio) return 0;
-    const inicio = timestampInicio.seconds ? timestampInicio.seconds * 1000 : timestampInicio;
-    const diffMs = Date.now() - inicio;
-    const diffMinutos = Math.floor(diffMs / 60000);
-
-    if (diffMinutos > 3) {
-      return (diffMinutos - 3) * 0.30;
-    }
-    return 0;
-  },
-
-  // 7. STATUS TEXTO
-  getStatusText(status) {
-    const statusMap = {
-      'pendente': 'Aguardando Loja',
-      'preparando': 'Preparando...',
-      'pronto': 'Pronto para Coleta',
-      'aguardando_entregador': 'No Radar',
-      'aceito': 'Motoboy a Caminho',
-      'em_entrega': 'Saiu para Entrega',
-      'finalizado': 'Concluído ✅',
-      'cancelado': 'Cancelado ✕'
+  getStatusText(s) {
+    const map = {
+      pendente:'📝 Pendente', preparando:'👨‍🍳 Preparando', pronto:'📦 Pronto',
+      aguardando_entregador:'🔍 No Radar', aceito:'🛵 Motoboy a Caminho',
+      em_entrega:'🚀 Em Entrega', finalizado:'✅ Entregue', cancelado:'❌ Cancelado'
     };
-    return statusMap[status] || status;
+    return map[s] || s;
   },
 
-  // 8. VIBRAÇÃO
-  vibrate(pattern = [200]) {
-    if ('vibrate' in navigator) navigator.vibrate(pattern);
+  // Gerar código de 4 dígitos
+  gerarCodigo() {
+    return Math.floor(1000 + Math.random() * 9000).toString();
   },
 
-  // 9. CONFIRMAÇÃO
-  confirmar(mensagem) {
-    return new Promise((resolve) => {
-      if (confirm(mensagem)) {
-        resolve(true);
-      } else {
-        resolve(false);
-      }
-    });
-  }
+  // Calcular tempo estimado
+  estimarTempo(bairroOrigem, bairroDestino) {
+    const tempos = {
+      'Centro': { 'Agreste': 15, 'Cajari': 12, 'Sarney': 10, 'Buritizal': 18, 'Malvinas': 15 },
+      'Agreste': { 'Centro': 15, 'Cajari': 10, 'Sarney': 15 },
+      'Cajari': { 'Centro': 12, 'Agreste': 10, 'Sarney': 12 },
+    };
+    return (tempos[bairroOrigem] && tempos[bairroOrigem][bairroDestino]) || 20;
+  },
+
+  vibrate(p = [200]) { if ('vibrate' in navigator) navigator.vibrate(p); },
+
+  confirmar(msg) { return confirm(msg); }
 };
+
+// Inicializar sons
+Utils.sons.inicializar();
 
 window.Utils = Utils;
