@@ -1,5 +1,5 @@
 // ========================================
-// BENAION DELIVERY - PAINEL DO ENTREGADOR (V2.2)
+// BENAION DELIVERY - PAINEL DO ENTREGADOR (V2.3)
 // ========================================
 
 let currentUser = null;
@@ -74,8 +74,12 @@ function renderizarListas() {
 
   if (!dispContainer || !minhasContainer) return;
 
+  // FILTRO CORRIGIDO: inclui 'pronto' e 'aguardando_entregador'
   const disponiveis = currentUser.online 
-    ? pedidosEscutados.filter(p => p.status === 'aguardando_entregador' && !p.entregadorId)
+    ? pedidosEscutados.filter(p => 
+        ['aguardando_entregador', 'pronto'].includes(p.status) && 
+        !p.entregadorId
+      )
     : [];
 
   const minhas = pedidosEscutados.filter(p => 
@@ -90,7 +94,7 @@ function renderizarListas() {
         <p>${currentUser.online ? 'Sem pedidos no momento...' : 'Fique Online para ver o Radar'}</p>
        </div>`
     : disponiveis.map(p => `
-      <div class="pedido-card animate__animated animate__fadeInUp">
+      <div class="pedido-card animate__animated animate__fadeInUp" style="background:white; border-radius:16px; padding:16px; margin-bottom:16px; box-shadow:0 4px 12px rgba(0,0,0,0.05); border-left:6px solid #E30613;">
         <div style="display:flex; justify-content:space-between; align-items:start;">
           <div style="font-size: 13px;">
             <b style="color:#E30613;">DE:</b> ${p.bairroRetirada ? p.bairroRetirada.toUpperCase() : 'N/A'}<br>
@@ -104,7 +108,7 @@ function renderizarListas() {
             <b style="color:#2ecc71; font-size:20px;">${window.Utils.formatCurrency(p.taxaEntrega)}</b>
           </div>
         </div>
-        <button class="btn-action btn-aceitar" onclick="aceitarCorrida('${p.id}', this)">ACEITAR ENTREGA</button>
+        <button class="btn-action btn-aceitar" onclick="window.aceitarCorrida('${p.id}', this)" style="background:#E30613; color:white; width:100%; margin-top:10px; border-radius:10px; padding:12px; font-weight:800; border:none; cursor:pointer;">ACEITAR ENTREGA</button>
       </div>
     `).join('');
 
@@ -122,8 +126,8 @@ function renderizarListas() {
           <p><i class="fas fa-map-marker-alt"></i> <b>Entrega:</b> ${p.entregaLocal || 'Endereço'} (${p.bairro || 'N/A'})</p>
         </div>
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-          <button class="btn-action" style="background:#f1f1f1; color:#333;" onclick="window.Utils.openGoogleMaps('${p.bairroRetirada}', '${p.bairro}')">ROTA</button>
-          <button class="btn-action" style="background:#2ecc71; color:white;" onclick="finalizarEntrega('${p.id}')">ENTREGUE</button>
+          <button class="btn-action" style="background:#f1f1f1; color:#333; border-radius:10px; padding:12px; font-weight:800; border:none; cursor:pointer;" onclick="window.Utils.openGoogleMaps('${p.bairroRetirada}', '${p.bairro}')">🗺️ ROTA</button>
+          <button class="btn-action" style="background:#2ecc71; color:white; border-radius:10px; padding:12px; font-weight:800; border:none; cursor:pointer;" onclick="window.finalizarEntrega('${p.id}')">✅ ENTREGUE</button>
         </div>
       </div>
     `).join('');
