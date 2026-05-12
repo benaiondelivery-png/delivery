@@ -29,7 +29,7 @@
     </header>
 
     <main class="page">
-      <div class="card animate__animated animate__fadeIn" style="background: linear-gradient(135deg, #E30613, #9e040d); color: white; text-align: center; padding: 20px; border-radius: 15px; border: none;">
+      <div class="card" style="background: linear-gradient(135deg, #E30613, #9e040d); color: white; text-align: center; padding: 20px; border-radius: 15px; border: none;">
         <h2 style="margin-bottom: 5px; font-weight: 800;">🚀 Benaion Delivery</h2>
         <p style="opacity: 0.9; font-size: 13px;">Seu pedido em boas mãos em Laranjal do Jari</p>
       </div>
@@ -53,7 +53,7 @@
       
       <div id="listaPedidos">
         <div style="text-align: center; padding: 40px; opacity: 0.4;">
-          <i class="fas fa-circle-notch fa-spin fa-2x"></i>
+          <i class="fas fa-spinner fa-spin fa-2x"></i>
           <p style="margin-top: 10px;">Sincronizando com o radar...</p>
         </div>
       </div>
@@ -68,7 +68,7 @@
 
   <!-- Modal Novo Pedido -->
   <div class="modal" id="novoPedidoModal">
-    <div class="modal-content animate__animated animate__slideInUp">
+    <div class="modal-content">
       <div class="modal-header">
         <h3 class="modal-title">📝 Nova Entrega</h3>
         <button class="modal-close" onclick="window.Utils.hideModal('novoPedidoModal')">&times;</button>
@@ -103,6 +103,9 @@
             <input type="text" class="form-control" id="pedidoEntregaLocal" required placeholder="Ex: Casa 123">
           </div>
 
+          <!-- Endereços Salvos -->
+          <div id="enderecosSalvos" style="margin-bottom: 15px;"></div>
+
           <label class="form-label">O que vamos entregar?</label>
           <input type="text" class="form-control" id="pedidoProduto" required placeholder="Ex: 2 Hambúrgueres e 1 Refri">
 
@@ -113,7 +116,7 @@
             </div>
           </div>
 
-          <button type="submit" class="btn btn-primary w-100" style="margin-top: 20px; padding: 15px; font-weight: 800; border: none; border-radius: 12px;">
+          <button type="submit" class="btn btn-primary w-100" style="margin-top: 20px; padding: 15px; font-weight: 800; border-radius: 12px;">
             CONFIRMAR E PEDIR
           </button>
         </form>
