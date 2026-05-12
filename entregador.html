@@ -5,58 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#E30613">
   <title>Entregador - BENAION DELIVERY</title>
-  
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
 
   <style>
-    :root {
-      --status-online: #2ecc71;
-      --status-offline: #95a5a6;
-    }
     body { background-color: #f4f7f6; font-family: 'Segoe UI', Roboto, sans-serif; }
     .hidden { display: none !important; }
-    
     .status-badge {
-      font-size: 11px;
-      padding: 4px 10px;
-      border-radius: 20px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      gap: 5px;
+      font-size: 11px; padding: 4px 10px; border-radius: 20px;
+      font-weight: 700; display: flex; align-items: center; gap: 5px;
     }
-
     .stat-box {
-      background: rgba(255,255,255,0.15);
-      padding: 10px;
-      border-radius: 12px;
-      backdrop-filter: blur(5px);
+      background: rgba(255,255,255,0.15); padding: 10px; border-radius: 12px; backdrop-filter: blur(5px);
     }
-
-    .btn-action {
-      border-radius: 10px;
-      padding: 12px;
-      font-weight: 800;
-      border: none;
-      transition: 0.2s;
-      cursor: pointer;
-    }
-
     .btn-aceitar {
-      background: #E30613;
-      color: white;
-      width: 100%;
-      margin-top: 10px;
+      background: #E30613; color: white; width: 100%; margin-top: 10px;
+      border-radius: 10px; padding: 12px; font-weight: 800; border: none; cursor: pointer;
     }
-
     .btn-aceitar:disabled { background: #ccc; }
-    .btn-aceitar:active:not(:disabled) { background: #b3050f; transform: scale(0.98); }
   </style>
 </head>
 <body>
-
   <div class="container">
     <header class="header">
       <div class="header-top">
@@ -79,15 +49,15 @@
     </header>
 
     <main class="page">
-      <div class="card animate__animated animate__fadeIn" style="background: linear-gradient(135deg, #E30613 0%, #90030a 100%); color: white; margin-bottom: 20px; border: none; border-radius: 20px; padding: 20px;">
+      <div class="card" style="background: linear-gradient(135deg, #E30613 0%, #90030a 100%); color: white; margin-bottom: 20px; border: none; border-radius: 20px; padding: 20px;">
         <p style="font-size: 12px; opacity: 0.8; margin-bottom: 15px; font-weight: 600;">RESUMO DE HOJE</p>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
           <div class="stat-box">
-            <span style="font-size: 11px; display: block; opacity: 0.9;">Ganhos Totais</span>
+            <span style="font-size: 11px; display: block; opacity: 0.9;">Ganhos Hoje</span>
             <b style="font-size: 22px;" id="statSaldo">R$ 0,00</b>
           </div>
           <div class="stat-box">
-            <span style="font-size: 11px; display: block; opacity: 0.9;">Entregas</span>
+            <span style="font-size: 11px; display: block; opacity: 0.9;">Entregas Hoje</span>
             <b style="font-size: 22px;" id="statHoje">0</b>
           </div>
         </div>
@@ -118,12 +88,11 @@
 
     <nav class="bottom-nav">
       <button class="nav-item active" onclick="window.mostrarAba('disponiveis')"><i class="fas fa-motorcycle"></i><span>Radar</span></button>
-      <button class="nav-item" onclick="window.Utils.showToast('Tabela de Preços em breve', 'info')"><i class="fas fa-list-ul"></i><span>Preços</span></button>
+      <button class="nav-item" onclick="window.Utils.showToast('Histórico em breve', 'info')"><i class="fas fa-list-ul"></i><span>Preços</span></button>
       <button class="nav-item" onclick="window.toggleStatus()"><i class="fas fa-power-off" id="navIconStatus"></i><span id="navTextStatus">Offline</span></button>
     </nav>
   </div>
 
-  <!-- Scripts -->
   <script src="js/utils.js"></script>
   <script type="module" src="js/api.js"></script>
   <script type="module" src="js/entregador.js"></script>
