@@ -1,5 +1,5 @@
 // ========================================
-// BENAION DELIVERY - PAINEL DO CLIENTE (V2.2)
+// BENAION DELIVERY - PAINEL DO CLIENTE (V2.3)
 // ========================================
 
 let currentUser = null;
@@ -23,7 +23,7 @@ async function initPaginaCliente() {
     renderizarMeusPedidos(meusPedidos);
   });
 
-  carregarParceiros();
+  carregarParceirosReais();
 }
 
 function atualizarTaxaEstimada() {
@@ -68,7 +68,7 @@ function renderizarMeusPedidos(pedidos) {
       <div style="display:flex; justify-content:space-between; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid #f9f9f9;">
         <span style="font-weight:900; color:#27ae60; font-size: 16px;">${window.Utils.formatCurrency(p.taxaEntrega)}</span>
         ${p.status === 'aguardando_entregador' ? 
-          `<button onclick="cancelarMeuPedido('${p.id}')" style="background:none; border:none; color:#999; font-size:11px; cursor:pointer;"><i class="fas fa-times"></i> CANCELAR</button>` 
+          `<button onclick="window.cancelarMeuPedido('${p.id}')" style="background:none; border:none; color:#999; font-size:11px; cursor:pointer;"><i class="fas fa-times"></i> CANCELAR</button>` 
           : ''}
       </div>
     </div>
@@ -118,24 +118,46 @@ async function handleNovoPedido(e) {
   }
 }
 
-function carregarParceiros() {
-  const parceiros = [
-    {nome: "Pizzaria", img: "https://cdn-icons-png.flaticon.com/512/3132/3132693.png"},
-    {nome: "Burguer 10", img: "https://cdn-icons-png.flaticon.com/512/3075/3075977.png"},
-    {nome: "Farmácia", img: "https://cdn-icons-png.flaticon.com/512/4320/4320337.png"},
-    {nome: "Distribuidora", img: "https://cdn-icons-png.flaticon.com/512/952/952306.png"}
-  ];
+// ==========================================
+// LOJAS PARCEIRAS REAIS (DO FIRESTORE)
+// ==========================================
+async function carregarParceirosReais() {
   const container = document.getElementById('listaParceiros');
-  if (container) {
+  if (!container) return;
+
+  try {
+    const { getDocs, collection, query, where } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js");
+    const q = query(collection(window.db, "users"), where("userType", "==", "parceiro"));
+    const snap = await getDocs(q);
+    const parceiros = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    if (parceiros.length === 0) {
+      container.innerHTML = '<p style="text-align:center; width:100%; padding:20px; color:#999; font-size:13px;">🏪 Nenhuma loja parceira ainda.<br><small>Cadastre-se como parceiro!</small></p>';
+      return;
+    }
+
     container.innerHTML = parceiros.map(p => `
-      <div style="text-align: center; min-width: 85px; cursor: pointer;" onclick="window.Utils.showToast('Loja selecionada: ${p.nome}', 'info')">
-        <div style="width: 65px; height: 65px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto; box-shadow: 0 4px 8px rgba(0,0,0,0.05); border: 1px solid #eee;">
-          <img src="${p.img}" style="width: 40px;">
+      <div style="text-align: center; min-width: 80px; cursor: pointer;" 
+           onclick="selecionarLojaParceira('${p.id}', '${p.storeName || p.name}')">
+        <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #E30613, #c00510); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto; box-shadow: 0 4px 10px rgba(227,6,19,0.2);">
+          <i class="fas fa-store" style="font-size: 24px; color: white;"></i>
         </div>
-        <p style="font-size: 11px; margin-top: 8px; font-weight: 700; color: #666;">${p.nome}</p>
+        <p style="font-size: 10px; margin-top: 8px; font-weight: 700; color: #555; line-height: 1.2;">${p.storeName || p.name}</p>
       </div>
     `).join('');
+
+  } catch (e) {
+    console.error("Erro ao carregar parceiros:", e);
+    container.innerHTML = '<p style="text-align:center; width:100%; color:#999;">Erro ao carregar lojas.</p>';
   }
+}
+
+function selecionarLojaParceira(lojaId, lojaNome) {
+  document.getElementById('pedidoBairroRetirada').value = 'Centro';
+  document.getElementById('pedidoRetiradaLocal').value = lojaNome;
+  window.Utils.showToast(`🏪 ${lojaNome} selecionada!`, 'success');
+  window.Utils.showModal('novoPedidoModal');
+  atualizarTaxaEstimada();
 }
 
 function getStatusColor(status) {
@@ -156,5 +178,6 @@ function getStatusColor(status) {
 window.atualizarTaxaEstimada = atualizarTaxaEstimada;
 window.cancelarMeuPedido = cancelarMeuPedido;
 window.handleNovoPedido = handleNovoPedido;
+window.selecionarLojaParceira = selecionarLojaParceira;
 
 document.addEventListener('DOMContentLoaded', initPaginaCliente);
