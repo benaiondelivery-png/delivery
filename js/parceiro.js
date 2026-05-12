@@ -1,8 +1,6 @@
 // ========================================
-// BENAION DELIVERY - PAINEL DO PARCEIRO (V2.2)
+// BENAION DELIVERY - PAINEL DO PARCEIRO (V2.3)
 // ========================================
-
-import { API, Auth } from './api.js';
 
 let currentUser = null;
 let pedidosLoja = [];
@@ -124,7 +122,7 @@ function renderizar() {
           <span style="font-weight:bold; color:#27ae60;">${window.Utils.formatCurrency(p.taxaEntrega)}</span>
           <div style="display:flex; gap:5px;">
             ${p.status === 'aguardando_entregador' ? 
-              `<button class="btn btn-small" style="background:#ff4757; color:white; border:none; padding:5px 10px;" onclick="cancelarPedidoLoja('${p.id}')">Cancelar</button>` : 
+              `<button class="btn btn-small" style="background:#ff4757; color:white; border:none; padding:5px 10px;" onclick="window.cancelarPedidoLoja('${p.id}')">Cancelar</button>` : 
               `<button class="btn btn-small btn-outline" onclick="window.Utils.showToast('Entregador: ${p.entregadorNome || 'N/A'}', 'info')">Info</button>`
             }
           </div>
@@ -158,7 +156,6 @@ function atualizarDashboard() {
   if (elFaturamento) elFaturamento.textContent = window.Utils.formatCurrency(faturamento);
 }
 
-// ---- PRODUTOS ----
 async function carregarProdutos() {
   const grid = document.getElementById('gridProdutos');
   if (!grid || !currentUser) return;
@@ -203,7 +200,6 @@ async function handleAddProduto(e) {
   }
 }
 
-// ---- TABS ----
 function switchTab(tab) {
   document.querySelectorAll('.tab-section').forEach(s => s.classList.add('hidden'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -225,7 +221,6 @@ window.cancelarPedidoLoja = cancelarPedidoLoja;
 window.switchTab = switchTab;
 window.handleAddProduto = handleAddProduto;
 
-// Configurar event listeners
 document.addEventListener('DOMContentLoaded', () => {
   init();
   
