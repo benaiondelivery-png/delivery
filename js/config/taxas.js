@@ -31,11 +31,6 @@ export function getTaxa(bairro) {
   return TAXAS[bairro] ?? 0;
 }
 
-export function atualizarTaxa(bairro, valor) {
-  if (bairro in TAXAS) {
-    TAXAS[bairro] = Number(valor);
-  }
-}
 
 export function listarTaxas() {
   return { ...TAXAS };
